@@ -1,7 +1,7 @@
 import uuid
 from typing import Any, Dict, List, Optional, Sequence
 
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ruleset import RuleSet
@@ -25,6 +25,11 @@ async def get_rulesets(
 ) -> Sequence[RuleSet]:
     result = await db.execute(select(RuleSet).offset(skip).limit(limit))
     return result.scalars().all()
+
+
+async def count_rulesets(db: AsyncSession) -> int:
+    result = await db.execute(select(func.count(RuleSet.id)))
+    return result.scalar_one()
 
 
 async def create_ruleset(

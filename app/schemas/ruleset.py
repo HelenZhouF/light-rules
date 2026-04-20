@@ -1,8 +1,26 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+
+
+class Link(BaseModel):
+    href: str
+    method: str = "GET"
+
+
+class ResourceLinks(BaseModel):
+    self: Link
+    update: Optional[Link] = None
+    delete: Optional[Link] = None
+
+
+class PaginationLinks(BaseModel):
+    self: Link
+    next: Optional[Link] = None
+    prev: Optional[Link] = None
+    first: Link
 
 
 class RuleSetBase(BaseModel):
@@ -24,7 +42,7 @@ class RuleSetUpdate(BaseModel):
     is_locked: Optional[bool] = None
 
 
-class RuleSetResponse(RuleSetBase):
+class RuleSetResponseData(RuleSetBase):
     id: uuid.UUID
     version: int
     is_locked: bool
@@ -35,3 +53,15 @@ class RuleSetResponse(RuleSetBase):
 
     class Config:
         from_attributes = True
+
+
+class RuleSetResponse(RuleSetResponseData):
+    _links: ResourceLinks
+
+
+class RuleSetListResponse(BaseModel):
+    items: List[RuleSetResponse]
+    _links: PaginationLinks
+    total: int
+    skip: int
+    limit: int
