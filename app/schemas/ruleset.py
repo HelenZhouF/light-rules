@@ -56,12 +56,22 @@ class RuleSetResponseData(RuleSetBase):
 
 
 class RuleSetResponse(RuleSetResponseData):
-    _links: ResourceLinks
+    links: ResourceLinks = Field(..., alias="_links")
+
+    model_config = {
+        "populate_by_name": True,
+        "by_alias": True,
+    }
 
 
 class RuleSetListResponse(BaseModel):
     items: List[RuleSetResponse]
-    _links: PaginationLinks
+    links: PaginationLinks = Field(..., alias="_links")
     total: int
     skip: int
     limit: int
+
+    model_config = {
+        "populate_by_name": True,
+        "by_alias": True,
+    }
