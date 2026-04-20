@@ -69,6 +69,7 @@ class RuleSetResponse(RuleSetResponseData):
     model_config = {
         "populate_by_name": True,
         "by_alias": True,
+        "exclude_none": True,
     }
 
 
@@ -82,4 +83,5 @@ class RuleSetListResponse(BaseModel):
     model_config = {
         "populate_by_name": True,
         "by_alias": True,
+        "exclude_none": True,
     }
