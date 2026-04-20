@@ -26,13 +26,14 @@ from app.utils.hateoas import build_ruleset_links, build_pagination_links
 router = APIRouter(prefix="/rulesets", tags=["rulesets"])
 
 
-def ruleset_to_response(ruleset) -> RuleSetResponse:
+def ruleset_to_response(ruleset) -> dict:
     data = RuleSetResponseData.model_validate(ruleset)
     links = build_ruleset_links(ruleset.id, ruleset.is_locked)
-    return RuleSetResponse(**data.model_dump(), _links=links)
+    response = RuleSetResponse(**data.model_dump(), _links=links)
+    return response.model_dump(by_alias=True, exclude_none=True)
 
 
-@router.get("/", response_model=RuleSetListResponse, status_code=status.HTTP_200_OK)
+@router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
 async def read_rulesets(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
@@ -44,16 +45,19 @@ async def read_rulesets(
     items = [ruleset_to_response(r) for r in rulesets]
     pagination_links = build_pagination_links(skip, limit, total)
     
-    return RuleSetListResponse(
-        items=items,
+    response = RuleSetListResponse(
+        items=[],
         _links=pagination_links,
         total=total,
         skip=skip,
         limit=limit,
     )
+    result = response.model_dump(by_alias=True, exclude_none=True)
+    result["items"] = items
+    return result
 
 
-@router.get("/{ruleset_id}", response_model=RuleSetResponse, status_code=status.HTTP_200_OK)
+@router.get("/{ruleset_id}", response_model=dict, status_code=status.HTTP_200_OK)
 async def read_ruleset(
     ruleset_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_session),
@@ -67,7 +71,7 @@ async def read_ruleset(
     return ruleset_to_response(ruleset)
 
 
-@router.post("/", response_model=RuleSetResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_new_ruleset(
     ruleset_in: RuleSetCreate,
     db: AsyncSession = Depends(get_async_session),
@@ -83,7 +87,7 @@ async def create_new_ruleset(
     return ruleset_to_response(ruleset)
 
 
-@router.put("/{ruleset_id}", response_model=RuleSetResponse, status_code=status.HTTP_200_OK)
+@router.put("/{ruleset_id}", response_model=dict, status_code=status.HTTP_200_OK)
 async def update_existing_ruleset(
     ruleset_id: uuid.UUID,
     ruleset_in: RuleSetUpdate,
