@@ -5,32 +5,29 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.base import Link, ResourceLinks, PaginationLinks
-from app.schemas.rule import RuleResponse
 
 
-class RuleSetBase(BaseModel):
+class RuleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    ruleSetType: str = Field(..., min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=1000)
-    signature: Optional[Dict[str, Any]] = None
+    conditional: Dict[str, Any]
+    order_index: int = Field(..., ge=0)
 
 
-class RuleSetCreate(RuleSetBase):
+class RuleCreate(RuleBase):
     pass
 
 
-class RuleSetUpdate(BaseModel):
+class RuleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
-    ruleSetType: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=1000)
-    signature: Optional[Dict[str, Any]] = None
-    is_locked: Optional[bool] = None
+    conditional: Optional[Dict[str, Any]] = None
+    order_index: Optional[int] = Field(None, ge=0)
 
 
-class RuleSetResponseData(RuleSetBase):
+class RuleResponseData(RuleBase):
     id: uuid.UUID
-    version: int
-    is_locked: bool
+    rule_set_id: uuid.UUID
     created_by: Optional[str]
     created_datetime: datetime
     modified_by: Optional[str]
@@ -40,7 +37,7 @@ class RuleSetResponseData(RuleSetBase):
         from_attributes = True
 
 
-class RuleSetResponse(RuleSetResponseData):
+class RuleResponse(RuleResponseData):
     links: ResourceLinks = Field(..., alias="_links")
 
     model_config = {
@@ -50,19 +47,8 @@ class RuleSetResponse(RuleSetResponseData):
     }
 
 
-class RuleSetDetailResponse(RuleSetResponseData):
-    rules: List[RuleResponse]
-    links: ResourceLinks = Field(..., alias="_links")
-
-    model_config = {
-        "populate_by_name": True,
-        "by_alias": True,
-        "exclude_none": True,
-    }
-
-
-class RuleSetListResponse(BaseModel):
-    items: List[RuleSetResponse]
+class RuleListResponse(BaseModel):
+    items: List[RuleResponse]
     links: PaginationLinks = Field(..., alias="_links")
     total: int
     skip: int

@@ -11,7 +11,9 @@ from app.schemas.ruleset import (
     RuleSetResponse,
     RuleSetResponseData,
     RuleSetListResponse,
+    RuleSetDetailResponse,
 )
+from app.schemas.rule import RuleResponse, RuleResponseData
 from app.crud import (
     get_ruleset_by_id,
     get_ruleset_by_name,
@@ -21,7 +23,8 @@ from app.crud import (
     update_ruleset,
     delete_ruleset,
 )
-from app.utils.hateoas import build_ruleset_links, build_pagination_links
+from app.crud.rule import get_ruleset_with_rules
+from app.utils.hateoas import build_ruleset_links, build_pagination_links, build_rule_links
 
 router = APIRouter(prefix="/rulesets", tags=["rulesets"])
 
@@ -30,6 +33,25 @@ def ruleset_to_response(ruleset) -> dict:
     data = RuleSetResponseData.model_validate(ruleset)
     links = build_ruleset_links(ruleset.id, ruleset.is_locked)
     response = RuleSetResponse(**data.model_dump(), _links=links)
+    return response.model_dump(by_alias=True, exclude_none=True)
+
+
+def ruleset_to_detail_response(ruleset) -> dict:
+    data = RuleSetResponseData.model_validate(ruleset)
+    links = build_ruleset_links(ruleset.id, ruleset.is_locked)
+    
+    rules_responses = []
+    for rule in ruleset.rules:
+        rule_data = RuleResponseData.model_validate(rule)
+        rule_links = build_rule_links(ruleset.id, rule.id, ruleset.is_locked)
+        rule_response = RuleResponse(**rule_data.model_dump(), _links=rule_links)
+        rules_responses.append(rule_response)
+    
+    response = RuleSetDetailResponse(
+        **data.model_dump(),
+        rules=rules_responses,
+        _links=links,
+    )
     return response.model_dump(by_alias=True, exclude_none=True)
 
 
@@ -62,13 +84,13 @@ async def read_ruleset(
     ruleset_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_session),
 ):
-    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    ruleset = await get_ruleset_with_rules(db, ruleset_id=ruleset_id)
     if ruleset is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="RuleSet not found",
         )
-    return ruleset_to_response(ruleset)
+    return ruleset_to_detail_response(ruleset)
 
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)

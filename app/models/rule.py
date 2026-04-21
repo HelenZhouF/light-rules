@@ -1,17 +1,20 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from sqlalchemy import String, DateTime, Boolean, Integer, UniqueConstraint
+from sqlalchemy import String, DateTime, Integer, ForeignKey, UniqueConstraint
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
 
-class RuleSet(Base):
-    __tablename__ = "rulesets"
-    __table_args__ = (UniqueConstraint("name", name="uq_rulesets_name"),)
+class Rule(Base):
+    __tablename__ = "rules"
+    __table_args__ = (
+        UniqueConstraint("rule_set_id", "name", name="uq_rules_ruleset_name"),
+        UniqueConstraint("rule_set_id", "order_index", name="uq_rules_ruleset_order_index"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True,
@@ -19,12 +22,15 @@ class RuleSet(Base):
         unique=True,
         nullable=False,
     )
+    rule_set_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("rulesets.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    ruleSetType: Mapped[str] = mapped_column(String(50), nullable=False)
     description: Mapped[str] = mapped_column(String(1000), nullable=True)
-    signature: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=True)
-    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    conditional: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     created_by: Mapped[str] = mapped_column(String(255), nullable=True)
     created_datetime: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -39,4 +45,4 @@ class RuleSet(Base):
         nullable=False,
     )
 
-    rules: Mapped[List["Rule"]] = relationship("Rule", back_populates="ruleset", cascade="all, delete-orphan")
+    ruleset: Mapped["RuleSet"] = relationship("RuleSet", back_populates="rules")
