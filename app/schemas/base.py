@@ -10,6 +10,8 @@ class Link(BaseModel):
 
 class ResourceLinks(BaseModel):
     self: Link
+    up: Optional[Link] = None
+    rules: Optional[Link] = None
     addRules: Optional[Link] = None
     update: Optional[Link] = None
     delete: Optional[Link] = None
