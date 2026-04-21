@@ -225,6 +225,37 @@ def test_backward_compatibility_dict_signature():
     print("[OK] Backward compatibility: dict signature converted to empty list")
 
 
+def test_backward_compatibility_with_orm_object():
+    """Test backward compatibility with ORM object (simulating SQLAlchemy model)"""
+    from app.schemas.ruleset import RuleSetResponseData, validate_signature_field
+    import uuid
+    from datetime import datetime
+
+    class MockORMObject:
+        def __init__(self):
+            self._signature = {"additionalProp1": {}}
+            self.id = uuid.uuid4()
+            self.name = "TestRuleSet"
+            self.ruleSetType = "decision"
+            self.description = "Test"
+            self.version = 1
+            self.is_locked = False
+            self.created_by = "test"
+            self.created_datetime = datetime.now()
+            self.modified_by = "test"
+            self.modified_datetime = datetime.now()
+        
+        @property
+        def signature(self):
+            return self._signature
+
+    mock_obj = MockORMObject()
+    
+    result = validate_signature_field(mock_obj.signature)
+    assert result == []
+    print("[OK] Backward compatibility: ORM object signature dict converted to empty list")
+
+
 def test_backward_compatibility_empty_dict():
     """Test backward compatibility with empty dict signature"""
     from app.schemas.ruleset import RuleSetResponseData
@@ -322,6 +353,7 @@ if __name__ == "__main__":
     test_serialization()
     test_full_example()
     test_backward_compatibility_dict_signature()
+    test_backward_compatibility_with_orm_object()
     test_backward_compatibility_empty_dict()
     test_backward_compatibility_none_signature()
     test_backward_compatibility_list_signature()
