@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ from app.schemas.base import Link, ResourceLinks, PaginationLinks
 class RuleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
-    conditional: Dict[str, Any]
+    conditional: str
     order_index: int = Field(..., ge=0)
 
 
@@ -21,7 +21,7 @@ class RuleCreate(RuleBase):
 class RuleUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
-    conditional: Optional[Dict[str, Any]] = None
+    conditional: Optional[str] = None
     order_index: Optional[int] = Field(None, ge=0)
 
 
