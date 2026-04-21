@@ -15,6 +15,7 @@ def build_ruleset_links(
     
     links = ResourceLinks(
         self=Link(href=base_url, method="GET"),
+        rules=Link(href=f"{base_url}/rules/", method="GET"),
     )
     
     if not is_locked:
@@ -31,9 +32,11 @@ def build_rule_links(
     ruleset_is_locked: bool,
 ) -> ResourceLinks:
     base_url = f"{API_BASE}/{ruleset_id}/rules/{rule_id}"
+    ruleset_url = f"{API_BASE}/{ruleset_id}"
     
     links = ResourceLinks(
         self=Link(href=base_url, method="GET"),
+        up=Link(href=ruleset_url, method="GET"),
     )
     
     if not ruleset_is_locked:
