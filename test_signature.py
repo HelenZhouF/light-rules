@@ -76,30 +76,25 @@ def test_data_grid_with_extension():
     print("[OK] dataGrid type with nested extension test passed")
 
 
-def test_data_grid_must_have_extension():
-    """Test dataGrid type must have dataGridExtension"""
-    try:
-        SignatureTerm(
-            name="accidents",
-            dataType=DataType.DATAGRID,
-            direction=Direction.INPUT
-        )
-        assert False, "Should raise validation error"
-    except ValueError as e:
-        assert "dataGridExtension is required" in str(e)
-        print("[OK] dataGrid requires dataGridExtension validation passed")
+def test_data_grid_without_extension():
+    """Test dataGrid type can exist without dataGridExtension"""
+    term = SignatureTerm(
+        name="accidents",
+        dataType=DataType.DATAGRID,
+        direction=Direction.INPUT
+    )
+    assert term.dataType == DataType.DATAGRID
+    assert term.dataGridExtension is None
+    print("[OK] dataGrid type without dataGridExtension test passed")
 
-    try:
-        SignatureTerm(
-            name="accidents",
-            dataType=DataType.DATAGRID,
-            direction=Direction.INPUT,
-            dataGridExtension=[]
-        )
-        assert False, "Should raise validation error"
-    except ValueError as e:
-        assert "dataGridExtension cannot be empty" in str(e)
-        print("[OK] dataGridExtension cannot be empty validation passed")
+    term2 = SignatureTerm(
+        name="accidents",
+        dataType=DataType.DATAGRID,
+        direction=Direction.INPUT,
+        dataGridExtension=[]
+    )
+    assert term2.dataGridExtension == []
+    print("[OK] dataGrid type with empty dataGridExtension test passed")
 
 
 def test_non_data_grid_cannot_have_extension():
@@ -347,7 +342,7 @@ if __name__ == "__main__":
     test_string_with_length()
     test_decimal_type()
     test_data_grid_with_extension()
-    test_data_grid_must_have_extension()
+    test_data_grid_without_extension()
     test_non_data_grid_cannot_have_extension()
     test_length_only_for_string_and_decimal()
     test_serialization()

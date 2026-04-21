@@ -28,12 +28,7 @@ class SignatureTerm(BaseModel):
 
     @model_validator(mode="after")
     def validate_signature_term(self) -> "SignatureTerm":
-        if self.dataType == DataType.DATAGRID:
-            if self.dataGridExtension is None:
-                raise ValueError("dataGridExtension is required when dataType is 'dataGrid'")
-            if len(self.dataGridExtension) == 0:
-                raise ValueError("dataGridExtension cannot be empty when dataType is 'dataGrid'")
-        elif self.dataGridExtension is not None:
+        if self.dataType != DataType.DATAGRID and self.dataGridExtension is not None:
             raise ValueError("dataGridExtension should only be set when dataType is 'dataGrid'")
 
         if self.dataType == DataType.STRING and self.length is None:
