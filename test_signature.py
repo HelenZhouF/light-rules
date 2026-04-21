@@ -200,6 +200,114 @@ def test_full_example():
     print(f"[OK] Full example test passed:\n{json_str}")
 
 
+def test_backward_compatibility_dict_signature():
+    """Test backward compatibility with old dict format signature"""
+    from app.schemas.ruleset import RuleSetResponseData
+    import uuid
+    from datetime import datetime
+
+    data = {
+        "id": uuid.uuid4(),
+        "name": "TestRuleSet",
+        "ruleSetType": "decision",
+        "description": "Test",
+        "signature": {"additionalProp1": {}},
+        "version": 1,
+        "is_locked": False,
+        "created_by": "test",
+        "created_datetime": datetime.now(),
+        "modified_by": "test",
+        "modified_datetime": datetime.now(),
+    }
+
+    result = RuleSetResponseData.model_validate(data)
+    assert result.signature == []
+    print("[OK] Backward compatibility: dict signature converted to empty list")
+
+
+def test_backward_compatibility_empty_dict():
+    """Test backward compatibility with empty dict signature"""
+    from app.schemas.ruleset import RuleSetResponseData
+    import uuid
+    from datetime import datetime
+
+    data = {
+        "id": uuid.uuid4(),
+        "name": "TestRuleSet",
+        "ruleSetType": "decision",
+        "description": "Test",
+        "signature": {},
+        "version": 1,
+        "is_locked": False,
+        "created_by": "test",
+        "created_datetime": datetime.now(),
+        "modified_by": "test",
+        "modified_datetime": datetime.now(),
+    }
+
+    result = RuleSetResponseData.model_validate(data)
+    assert result.signature == []
+    print("[OK] Backward compatibility: empty dict converted to empty list")
+
+
+def test_backward_compatibility_none_signature():
+    """Test backward compatibility with None signature"""
+    from app.schemas.ruleset import RuleSetResponseData
+    import uuid
+    from datetime import datetime
+
+    data = {
+        "id": uuid.uuid4(),
+        "name": "TestRuleSet",
+        "ruleSetType": "decision",
+        "description": "Test",
+        "signature": None,
+        "version": 1,
+        "is_locked": False,
+        "created_by": "test",
+        "created_datetime": datetime.now(),
+        "modified_by": "test",
+        "modified_datetime": datetime.now(),
+    }
+
+    result = RuleSetResponseData.model_validate(data)
+    assert result.signature is None
+    print("[OK] Backward compatibility: None signature remains None")
+
+
+def test_backward_compatibility_list_signature():
+    """Test that new list format works correctly"""
+    from app.schemas.ruleset import RuleSetResponseData
+    import uuid
+    from datetime import datetime
+
+    data = {
+        "id": uuid.uuid4(),
+        "name": "TestRuleSet",
+        "ruleSetType": "decision",
+        "description": "Test",
+        "signature": [
+            {
+                "name": "isHighCost",
+                "dataType": "boolean",
+                "direction": "output"
+            }
+        ],
+        "version": 1,
+        "is_locked": False,
+        "created_by": "test",
+        "created_datetime": datetime.now(),
+        "modified_by": "test",
+        "modified_datetime": datetime.now(),
+    }
+
+    result = RuleSetResponseData.model_validate(data)
+    assert len(result.signature) == 1
+    assert result.signature[0].name == "isHighCost"
+    assert result.signature[0].dataType.value == "boolean"
+    print("[OK] Backward compatibility: list format works correctly")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding='utf-8')
     print("Starting Signature model tests...\n")
@@ -213,5 +321,9 @@ if __name__ == "__main__":
     test_length_only_for_string_and_decimal()
     test_serialization()
     test_full_example()
+    test_backward_compatibility_dict_signature()
+    test_backward_compatibility_empty_dict()
+    test_backward_compatibility_none_signature()
+    test_backward_compatibility_list_signature()
 
     print("\n[OK] All tests passed!")

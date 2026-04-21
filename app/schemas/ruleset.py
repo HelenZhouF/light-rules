@@ -1,12 +1,26 @@
 import uuid
 from datetime import datetime
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.base import Link, ResourceLinks, PaginationLinks
 from app.schemas.rule import RuleResponse
 from app.schemas.signature import SignatureTerm
+
+
+def convert_signature_to_list(
+    value: Optional[Union[List[Any], Dict[str, Any]]]
+) -> Optional[List[SignatureTerm]]:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [SignatureTerm(**item) if isinstance(item, dict) else item for item in value]
+    if isinstance(value, dict):
+        if len(value) == 0 or (len(value) == 1 and "additionalProp1" in value):
+            return []
+        return []
+    return None
 
 
 class RuleSetBase(BaseModel):
@@ -37,8 +51,30 @@ class RuleSetResponseData(RuleSetBase):
     modified_by: Optional[str]
     modified_datetime: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True,
+    }
+
+    @model_validator(mode="before")
+    @classmethod
+    def convert_signature(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            signature = data.get("signature")
+            if signature is not None and isinstance(signature, dict):
+                data["signature"] = convert_signature_to_list(signature)
+            return data
+        elif hasattr(data, "signature"):
+            signature = getattr(data, "signature", None)
+            if signature is not None and isinstance(signature, dict):
+                result = {}
+                for key in ["id", "name", "ruleSetType", "description", "version", 
+                           "is_locked", "created_by", "created_datetime", 
+                           "modified_by", "modified_datetime", "rules"]:
+                    if hasattr(data, key):
+                        result[key] = getattr(data, key)
+                result["signature"] = convert_signature_to_list(signature)
+                return result
+        return data
 
 
 class RuleSetResponse(RuleSetResponseData):
