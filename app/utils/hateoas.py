@@ -18,6 +18,7 @@ def build_ruleset_links(
     )
     
     if not is_locked:
+        links.addRules = Link(href=f"{base_url}/rules/", method="POST")
         links.update = Link(href=base_url, method="PUT")
         links.delete = Link(href=base_url, method="DELETE")
     

@@ -1,9 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict
 
-from sqlalchemy import String, DateTime, Integer, ForeignKey, UniqueConstraint
-from sqlalchemy.dialects.sqlite import JSON
+from sqlalchemy import String, DateTime, Integer, ForeignKey, UniqueConstraint, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -29,7 +27,7 @@ class Rule(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(String(1000), nullable=True)
-    conditional: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False)
+    conditional: Mapped[str] = mapped_column(Text, nullable=False)
     order_index: Mapped[int] = mapped_column(Integer, nullable=False)
     created_by: Mapped[str] = mapped_column(String(255), nullable=True)
     created_datetime: Mapped[datetime] = mapped_column(
