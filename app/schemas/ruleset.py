@@ -2,14 +2,15 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator
+from pydantic_core import PydanticCustomError
 
 from app.schemas.base import Link, ResourceLinks, PaginationLinks
 from app.schemas.rule import RuleResponse
 from app.schemas.signature import SignatureTerm
 
 
-def convert_signature_to_list(
+def convert_signature_value(
     value: Optional[Union[List[Any], Dict[str, Any]]]
 ) -> Optional[List[SignatureTerm]]:
     if value is None:
@@ -23,11 +24,32 @@ def convert_signature_to_list(
     return None
 
 
+def validate_signature_field(
+    value: Optional[Union[List[Any], Dict[str, Any]]]
+) -> Optional[List[SignatureTerm]]:
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [SignatureTerm(**item) if isinstance(item, dict) else item for item in value]
+    if isinstance(value, dict):
+        return convert_signature_value(value)
+    raise PydanticCustomError(
+        "list_type",
+        "Input should be a valid list",
+        {"input": value}
+    )
+
+
 class RuleSetBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     ruleSetType: str = Field(..., min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=1000)
     signature: Optional[List[SignatureTerm]] = None
+
+    @field_validator("signature", mode="before")
+    @classmethod
+    def validate_signature(cls, value: Any) -> Any:
+        return validate_signature_field(value)
 
 
 class RuleSetCreate(RuleSetBase):
@@ -40,6 +62,11 @@ class RuleSetUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     signature: Optional[List[SignatureTerm]] = None
     is_locked: Optional[bool] = None
+
+    @field_validator("signature", mode="before")
+    @classmethod
+    def validate_signature(cls, value: Any) -> Any:
+        return validate_signature_field(value)
 
 
 class RuleSetResponseData(RuleSetBase):
@@ -54,27 +81,6 @@ class RuleSetResponseData(RuleSetBase):
     model_config = {
         "from_attributes": True,
     }
-
-    @model_validator(mode="before")
-    @classmethod
-    def convert_signature(cls, data: Any) -> Any:
-        if isinstance(data, dict):
-            signature = data.get("signature")
-            if signature is not None and isinstance(signature, dict):
-                data["signature"] = convert_signature_to_list(signature)
-            return data
-        elif hasattr(data, "signature"):
-            signature = getattr(data, "signature", None)
-            if signature is not None and isinstance(signature, dict):
-                result = {}
-                for key in ["id", "name", "ruleSetType", "description", "version", 
-                           "is_locked", "created_by", "created_datetime", 
-                           "modified_by", "modified_datetime", "rules"]:
-                    if hasattr(data, key):
-                        result[key] = getattr(data, key)
-                result["signature"] = convert_signature_to_list(signature)
-                return result
-        return data
 
 
 class RuleSetResponse(RuleSetResponseData):
