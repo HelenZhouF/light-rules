@@ -1,18 +1,19 @@
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.base import Link, ResourceLinks, PaginationLinks
 from app.schemas.rule import RuleResponse
+from app.schemas.signature import SignatureTerm
 
 
 class RuleSetBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     ruleSetType: str = Field(..., min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=1000)
-    signature: Optional[Dict[str, Any]] = None
+    signature: Optional[List[SignatureTerm]] = None
 
 
 class RuleSetCreate(RuleSetBase):
@@ -23,7 +24,7 @@ class RuleSetUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     ruleSetType: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=1000)
-    signature: Optional[Dict[str, Any]] = None
+    signature: Optional[List[SignatureTerm]] = None
     is_locked: Optional[bool] = None
 
 
