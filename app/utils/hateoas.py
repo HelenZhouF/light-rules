@@ -18,10 +18,13 @@ def build_ruleset_links(
         rules=Link(href=f"{base_url}/rules/", method="GET"),
     )
     
+    setattr(links, "revisions", Link(href=f"{base_url}/revisions", method="GET"))
+    
     if not is_locked:
         links.addRules = Link(href=f"{base_url}/rules/", method="POST")
         links.update = Link(href=base_url, method="PUT")
         links.delete = Link(href=base_url, method="DELETE")
+        setattr(links, "createRevision", Link(href=f"{base_url}/revisions", method="POST"))
     
     return links
 

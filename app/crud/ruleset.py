@@ -252,6 +252,23 @@ async def create_ruleset(
 
     ruleset = RuleSet(**ruleset_data)
     db.add(ruleset)
+    await db.flush()
+    
+    revision_data = {
+        "rule_set_id": ruleset.id,
+        "name": ruleset.name,
+        "ruleSetType": ruleset.ruleSetType,
+        "description": ruleset.description,
+        "signature": ruleset.signature,
+        "major": ruleset.major,
+        "minor": ruleset.minor,
+        "is_locked": True,
+        "created_by": created_by,
+        "modified_by": created_by,
+    }
+    revision = Revision(**revision_data)
+    db.add(revision)
+    
     await db.commit()
     await db.refresh(ruleset)
     return ruleset
@@ -402,6 +419,7 @@ async def create_revision(
     db: AsyncSession,
     ruleset_id: uuid.UUID,
     revision_type: RevisionType = RevisionType.minor,
+    ruleset_update: Optional[RuleSetUpdate] = None,
     created_by: Optional[str] = None,
 ) -> Optional[Revision]:
     ruleset = await get_ruleset_by_id(db, ruleset_id)
@@ -432,6 +450,52 @@ async def create_revision(
 
     ruleset.version += 1
     ruleset.modified_by = created_by
+
+    if ruleset_update:
+        update_data = ruleset_update.model_dump(exclude_unset=True)
+        if update_data:
+            update_data["modified_by"] = created_by
+
+            old_signature = ruleset.signature
+            
+            new_signature_input = None
+            if ruleset_update.signature is not None:
+                new_signature_input = _signature_terms_to_dicts(ruleset_update.signature)
+            
+            if new_signature_input is not None:
+                update_data["signature"] = new_signature_input
+            
+            new_signature = update_data.get("signature")
+            
+            if new_signature is not None:
+                reconciled_signature = reconcile_signature_ids(old_signature, new_signature)
+                if reconciled_signature is not None:
+                    new_signature = reconciled_signature
+                    update_data["signature"] = new_signature
+                
+                name_mapping = detect_term_renames_by_id(old_signature, new_signature)
+                
+                if name_mapping or new_signature:
+                    ruleset_with_rules = await db.execute(
+                        select(RuleSet)
+                        .options(selectinload(RuleSet.rules))
+                        .where(RuleSet.id == ruleset_id)
+                    )
+                    ruleset_obj = ruleset_with_rules.scalar_one_or_none()
+                    
+                    if ruleset_obj and ruleset_obj.rules:
+                        for rule in ruleset_obj.rules:
+                            if rule.conditions:
+                                rule.conditions = update_term_refs_in_list(
+                                    rule.conditions, name_mapping, new_signature
+                                )
+                            if rule.actions:
+                                rule.actions = update_term_refs_in_list(
+                                    rule.actions, name_mapping, new_signature
+                                )
+
+            for key, value in update_data.items():
+                setattr(ruleset, key, value)
 
     await db.commit()
     await db.refresh(revision)
