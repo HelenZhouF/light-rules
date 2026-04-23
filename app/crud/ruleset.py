@@ -8,7 +8,9 @@ from sqlalchemy.orm import selectinload
 
 from app.models.ruleset import RuleSet
 from app.models.rule import Rule
+from app.models.revision import Revision
 from app.schemas.ruleset import RuleSetCreate, RuleSetUpdate
+from app.schemas.revision import RevisionType
 
 
 def _term_to_dict(term: Any) -> Optional[Dict[str, Any]]:
@@ -354,3 +356,83 @@ async def delete_ruleset(
     await db.delete(ruleset)
     await db.commit()
     return True
+
+
+async def get_revisions(
+    db: AsyncSession,
+    ruleset_id: uuid.UUID,
+    skip: int = 0,
+    limit: int = 100,
+) -> Sequence[Revision]:
+    result = await db.execute(
+        select(Revision)
+        .where(Revision.rule_set_id == ruleset_id)
+        .order_by(Revision.major.desc(), Revision.minor.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    return result.scalars().all()
+
+
+async def get_revision_by_id(
+    db: AsyncSession,
+    ruleset_id: uuid.UUID,
+    revision_id: uuid.UUID,
+) -> Optional[Revision]:
+    result = await db.execute(
+        select(Revision).where(
+            Revision.rule_set_id == ruleset_id,
+            Revision.id == revision_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def count_revisions(
+    db: AsyncSession,
+    ruleset_id: uuid.UUID,
+) -> int:
+    result = await db.execute(
+        select(func.count(Revision.id)).where(Revision.rule_set_id == ruleset_id)
+    )
+    return result.scalar_one()
+
+
+async def create_revision(
+    db: AsyncSession,
+    ruleset_id: uuid.UUID,
+    revision_type: RevisionType = RevisionType.minor,
+    created_by: Optional[str] = None,
+) -> Optional[Revision]:
+    ruleset = await get_ruleset_by_id(db, ruleset_id)
+    if not ruleset:
+        return None
+
+    revision_data = {
+        "rule_set_id": ruleset.id,
+        "name": ruleset.name,
+        "ruleSetType": ruleset.ruleSetType,
+        "description": ruleset.description,
+        "signature": ruleset.signature,
+        "major": ruleset.major,
+        "minor": ruleset.minor,
+        "is_locked": True,
+        "created_by": created_by,
+        "modified_by": created_by,
+    }
+
+    revision = Revision(**revision_data)
+    db.add(revision)
+
+    if revision_type == RevisionType.major:
+        ruleset.major += 1
+        ruleset.minor = 0
+    else:
+        ruleset.minor += 1
+
+    ruleset.version += 1
+    ruleset.modified_by = created_by
+
+    await db.commit()
+    await db.refresh(revision)
+    return revision

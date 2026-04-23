@@ -20,6 +20,14 @@ from app.schemas.rule import (
     RuleResponse,
     RuleListResponse,
 )
+from app.schemas.revision import (
+    RevisionType,
+    RevisionCreate,
+    RevisionBase,
+    RevisionResponseData,
+    RevisionResponse,
+    RevisionListResponse,
+)
 
 __all__ = [
     "Link",
@@ -38,4 +46,10 @@ __all__ = [
     "RuleResponseData",
     "RuleResponse",
     "RuleListResponse",
+    "RevisionType",
+    "RevisionCreate",
+    "RevisionBase",
+    "RevisionResponseData",
+    "RevisionResponse",
+    "RevisionListResponse",
 ]
