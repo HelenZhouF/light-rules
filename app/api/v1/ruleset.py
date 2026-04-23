@@ -82,10 +82,12 @@ def ruleset_to_detail_response(ruleset) -> dict:
     
     response = RuleSetDetailResponse(
         **data.model_dump(),
-        rules=rules_responses,
+        rules=[],
         _links=links,
     )
-    return response.model_dump(by_alias=True, exclude_none=True)
+    result = response.model_dump(by_alias=True, exclude_none=True)
+    result["rules"] = rules_responses
+    return result
 
 
 @router.get("/", response_model=dict, status_code=status.HTTP_200_OK)

@@ -1,10 +1,22 @@
 import uuid
 from enum import Enum
-from typing import Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.signature import SignatureTerm
+
+class DataType(str, Enum):
+    STRING = "string"
+    DECIMAL = "decimal"
+    BOOLEAN = "boolean"
+    DATE = "date"
+    DATETIME = "datetime"
+    DATAGRID = "dataGrid"
+
+
+class Direction(str, Enum):
+    INPUT = "input"
+    OUTPUT = "output"
 
 
 class ConditionType(str, Enum):
@@ -91,6 +103,3 @@ class ActionResponse(ActionResponseBase):
     id: uuid.UUID
     status: Optional[str] = None
     statusMessage: Optional[str] = None
-
-
-TermRefResponse.model_rebuild()
