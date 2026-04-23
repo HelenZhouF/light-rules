@@ -13,7 +13,12 @@ from app.schemas.ruleset import (
     RuleSetListResponse,
     RuleSetDetailResponse,
 )
-from app.schemas.rule import RuleResponse, RuleResponseData
+from app.schemas.rule import (
+    RuleResponse,
+    RuleResponseData,
+    convert_conditions_with_signature,
+    convert_actions_with_signature,
+)
 from app.crud import (
     get_ruleset_by_id,
     get_ruleset_by_name,
@@ -36,15 +41,43 @@ def ruleset_to_response(ruleset) -> dict:
     return response.model_dump(by_alias=True, exclude_none=True)
 
 
+def rule_to_response_with_signature(rule, signature, ruleset_id, ruleset_is_locked: bool) -> dict:
+    conditions = convert_conditions_with_signature(rule.conditions, signature)
+    actions = convert_actions_with_signature(rule.actions, signature)
+    
+    data_dict = {
+        "name": rule.name,
+        "description": rule.description,
+        "conditional": rule.conditional,
+        "order_index": rule.order_index,
+        "id": rule.id,
+        "rule_set_id": rule.rule_set_id,
+        "conditions": conditions,
+        "actions": actions,
+        "created_by": rule.created_by,
+        "created_datetime": rule.created_datetime,
+        "modified_by": rule.modified_by,
+        "modified_datetime": rule.modified_datetime,
+    }
+    
+    data = RuleResponseData(**data_dict)
+    links = build_rule_links(ruleset_id, rule.id, ruleset_is_locked)
+    response = RuleResponse(**data.model_dump(), _links=links)
+    return response.model_dump(by_alias=True, exclude_none=True)
+
+
 def ruleset_to_detail_response(ruleset) -> dict:
     data = RuleSetResponseData.model_validate(ruleset)
     links = build_ruleset_links(ruleset.id, ruleset.is_locked)
     
     rules_responses = []
     for rule in ruleset.rules:
-        rule_data = RuleResponseData.model_validate(rule)
-        rule_links = build_rule_links(ruleset.id, rule.id, ruleset.is_locked)
-        rule_response = RuleResponse(**rule_data.model_dump(), _links=rule_links)
+        rule_response = rule_to_response_with_signature(
+            rule, 
+            ruleset.signature, 
+            ruleset.id, 
+            ruleset.is_locked
+        )
         rules_responses.append(rule_response)
     
     response = RuleSetDetailResponse(
