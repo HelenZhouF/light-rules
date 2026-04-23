@@ -35,12 +35,21 @@ def convert_actions_value(
     return None
 
 
+def _term_to_dict(term: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(term, dict):
+        return term
+    if isinstance(term, BaseModel):
+        return term.model_dump()
+    return None
+
+
 def get_valid_term_names(signature: Optional[List[Any]]) -> Set[str]:
     valid_names = set()
     if signature:
         for term in signature:
-            if isinstance(term, dict) and "name" in term:
-                valid_names.add(term["name"])
+            term_dict = _term_to_dict(term)
+            if term_dict and "name" in term_dict:
+                valid_names.add(term_dict["name"])
     return valid_names
 
 
@@ -52,15 +61,16 @@ def build_signature_term_maps(
     
     if signature:
         for term in signature:
-            if isinstance(term, dict):
-                if "id" in term:
+            term_dict = _term_to_dict(term)
+            if term_dict:
+                if "id" in term_dict:
                     try:
-                        term_id = uuid.UUID(str(term["id"]))
-                        terms_by_id[term_id] = term
+                        term_id = uuid.UUID(str(term_dict["id"]))
+                        terms_by_id[term_id] = term_dict
                     except (ValueError, TypeError):
                         pass
-                if "name" in term:
-                    terms_by_name[term["name"]] = term
+                if "name" in term_dict:
+                    terms_by_name[term_dict["name"]] = term_dict
     
     return terms_by_id, terms_by_name
 

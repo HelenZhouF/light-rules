@@ -1,6 +1,7 @@
 import uuid
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,31 +11,41 @@ from app.models.rule import Rule
 from app.schemas.ruleset import RuleSetCreate, RuleSetUpdate
 
 
+def _term_to_dict(term: Any) -> Optional[Dict[str, Any]]:
+    if isinstance(term, dict):
+        return term
+    if isinstance(term, BaseModel):
+        return term.model_dump()
+    return None
+
+
 def build_term_maps_by_id(
-    signature: Optional[List[Dict[str, Any]]]
+    signature: Optional[List[Any]]
 ) -> Dict[uuid.UUID, Dict[str, Any]]:
     terms_by_id: Dict[uuid.UUID, Dict[str, Any]] = {}
     if signature:
         for term in signature:
-            if isinstance(term, dict) and "id" in term:
+            term_dict = _term_to_dict(term)
+            if term_dict and "id" in term_dict:
                 try:
-                    term_id = uuid.UUID(str(term["id"]))
-                    terms_by_id[term_id] = term
+                    term_id = uuid.UUID(str(term_dict["id"]))
+                    terms_by_id[term_id] = term_dict
                 except (ValueError, TypeError):
                     pass
     return terms_by_id
 
 
 def build_term_maps_by_name(
-    signature: Optional[List[Dict[str, Any]]]
+    signature: Optional[List[Any]]
 ) -> Dict[str, uuid.UUID]:
     name_to_id: Dict[str, uuid.UUID] = {}
     if signature:
         for term in signature:
-            if isinstance(term, dict) and "id" in term and "name" in term:
+            term_dict = _term_to_dict(term)
+            if term_dict and "id" in term_dict and "name" in term_dict:
                 try:
-                    term_id = uuid.UUID(str(term["id"]))
-                    name_to_id[term["name"]] = term_id
+                    term_id = uuid.UUID(str(term_dict["id"]))
+                    name_to_id[term_dict["name"]] = term_id
                 except (ValueError, TypeError):
                     pass
     return name_to_id
