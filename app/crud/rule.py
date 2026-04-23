@@ -8,6 +8,55 @@ from sqlalchemy.orm import selectinload
 from app.models.rule import Rule
 from app.models.ruleset import RuleSet
 from app.schemas.rule import RuleCreate, RuleUpdate
+from app.schemas.condition_action import ConditionCreate, ActionCreate
+
+
+def process_conditions_for_storage(
+    conditions: Optional[List[ConditionCreate]],
+    existing_conditions: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[List[Dict[str, Any]]]:
+    if conditions is None:
+        return existing_conditions
+    
+    if not conditions:
+        return []
+    
+    existing_by_id = {}
+    if existing_conditions:
+        for cond in existing_conditions:
+            if isinstance(cond, dict) and "id" in cond:
+                existing_by_id[cond["id"]] = cond
+    
+    result = []
+    for cond in conditions:
+        cond_dict = cond.model_dump()
+        cond_dict["id"] = str(uuid.uuid4())
+        cond_dict["status"] = None
+        cond_dict["statusMessage"] = None
+        result.append(cond_dict)
+    
+    return result
+
+
+def process_actions_for_storage(
+    actions: Optional[List[ActionCreate]],
+    existing_actions: Optional[List[Dict[str, Any]]] = None,
+) -> Optional[List[Dict[str, Any]]]:
+    if actions is None:
+        return existing_actions
+    
+    if not actions:
+        return []
+    
+    result = []
+    for action in actions:
+        action_dict = action.model_dump()
+        action_dict["id"] = str(uuid.uuid4())
+        action_dict["status"] = None
+        action_dict["statusMessage"] = None
+        result.append(action_dict)
+    
+    return result
 
 
 async def get_rule_by_id(db: AsyncSession, rule_id: uuid.UUID) -> Optional[Rule]:
@@ -86,10 +135,13 @@ async def create_rule(
     rule_set_id: uuid.UUID,
     created_by: Optional[str] = None,
 ) -> Rule:
-    rule_data = rule_in.model_dump()
+    rule_data = rule_in.model_dump(exclude={"conditions", "actions"})
     rule_data["rule_set_id"] = rule_set_id
     rule_data["created_by"] = created_by
     rule_data["modified_by"] = created_by
+    
+    rule_data["conditions"] = process_conditions_for_storage(rule_in.conditions)
+    rule_data["actions"] = process_actions_for_storage(rule_in.actions)
 
     rule = Rule(**rule_data)
     db.add(rule)
@@ -108,8 +160,21 @@ async def update_rule(
     if not rule:
         return None
 
-    update_data = rule_in.model_dump(exclude_unset=True)
-    if not update_data:
+    update_data = rule_in.model_dump(exclude_unset=True, exclude={"conditions", "actions"})
+    
+    if rule_in.conditions is not None:
+        update_data["conditions"] = process_conditions_for_storage(
+            rule_in.conditions,
+            rule.conditions
+        )
+    
+    if rule_in.actions is not None:
+        update_data["actions"] = process_actions_for_storage(
+            rule_in.actions,
+            rule.actions
+        )
+    
+    if not update_data and rule_in.conditions is None and rule_in.actions is None:
         return rule
 
     update_data["modified_by"] = modified_by
