@@ -72,6 +72,8 @@ class RuleSetUpdate(BaseModel):
 class RuleSetResponseData(RuleSetBase):
     id: uuid.UUID
     version: int
+    major: int
+    minor: int
     is_locked: bool
     created_by: Optional[str]
     created_datetime: datetime

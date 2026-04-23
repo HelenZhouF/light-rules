@@ -19,6 +19,12 @@ from app.schemas.rule import (
     convert_conditions_with_signature,
     convert_actions_with_signature,
 )
+from app.schemas.revision import (
+    RevisionCreate,
+    RevisionResponse,
+    RevisionResponseData,
+    RevisionListResponse,
+)
 from app.crud import (
     get_ruleset_by_id,
     get_ruleset_by_name,
@@ -28,8 +34,20 @@ from app.crud import (
     update_ruleset,
     delete_ruleset,
 )
+from app.crud.ruleset import (
+    get_revisions,
+    get_revision_by_id,
+    count_revisions,
+    create_revision,
+)
 from app.crud.rule import get_ruleset_with_rules
-from app.utils.hateoas import build_ruleset_links, build_pagination_links, build_rule_links
+from app.utils.hateoas import (
+    build_ruleset_links,
+    build_pagination_links,
+    build_rule_links,
+    build_revision_links,
+    build_revision_pagination_links,
+)
 
 router = APIRouter(prefix="/rulesets", tags=["rulesets"])
 
@@ -88,6 +106,13 @@ def ruleset_to_detail_response(ruleset) -> dict:
     result = response.model_dump(by_alias=True, exclude_none=True)
     result["rules"] = rules_responses
     return result
+
+
+def revision_to_response(ruleset_id: uuid.UUID, revision) -> dict:
+    data = RevisionResponseData.model_validate(revision)
+    links = build_revision_links(ruleset_id, revision.id)
+    response = RevisionResponse(**data.model_dump(), _links=links)
+    return response.model_dump(by_alias=True, exclude_none=True)
 
 
 @router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
@@ -199,3 +224,85 @@ async def delete_existing_ruleset(
     
     await delete_ruleset(db=db, ruleset_id=ruleset_id)
     return None
+
+
+@router.get("/{ruleset_id}/revisions", response_model=dict, status_code=status.HTTP_200_OK)
+async def read_revisions(
+    ruleset_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    total = await count_revisions(db, ruleset_id=ruleset_id)
+    revisions = await get_revisions(db, ruleset_id=ruleset_id, skip=skip, limit=limit)
+    
+    items = [revision_to_response(ruleset_id, r) for r in revisions]
+    pagination_links = build_revision_pagination_links(ruleset_id, skip, limit, total)
+    
+    response = RevisionListResponse(
+        items=[],
+        _links=pagination_links,
+        total=total,
+        skip=skip,
+        limit=limit,
+    )
+    result = response.model_dump(by_alias=True, exclude_none=True)
+    result["items"] = items
+    return result
+
+
+@router.get("/{ruleset_id}/revisions/{revision_id}", response_model=dict, status_code=status.HTTP_200_OK)
+async def read_revision(
+    ruleset_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    revision = await get_revision_by_id(db, ruleset_id=ruleset_id, revision_id=revision_id)
+    if revision is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Revision not found",
+        )
+    
+    return revision_to_response(ruleset_id, revision)
+
+
+@router.post("/{ruleset_id}/revisions", response_model=dict, status_code=status.HTTP_201_CREATED)
+async def create_new_revision(
+    ruleset_id: uuid.UUID,
+    revision_in: RevisionCreate = RevisionCreate(),
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    if ruleset.is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="RuleSet is locked and cannot be versioned",
+        )
+    
+    revision = await create_revision(
+        db=db,
+        ruleset_id=ruleset_id,
+        revision_type=revision_in.revisionType,
+    )
+    return revision_to_response(ruleset_id, revision)

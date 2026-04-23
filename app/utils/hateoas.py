@@ -95,3 +95,44 @@ def build_rule_pagination_links(
         links.prev = Link(href=build_page_url(prev_skip), method="GET")
     
     return links
+
+
+def build_revision_links(
+    ruleset_id: uuid.UUID,
+    revision_id: uuid.UUID,
+) -> ResourceLinks:
+    base_url = f"{API_BASE}/{ruleset_id}/revisions/{revision_id}"
+    ruleset_url = f"{API_BASE}/{ruleset_id}"
+    
+    links = ResourceLinks(
+        self=Link(href=base_url, method="GET"),
+        up=Link(href=ruleset_url, method="GET"),
+    )
+    
+    return links
+
+
+def build_revision_pagination_links(
+    ruleset_id: uuid.UUID,
+    skip: int,
+    limit: int,
+    total: int,
+) -> PaginationLinks:
+    base_url = f"{API_BASE}/{ruleset_id}/revisions"
+    
+    def build_page_url(s: int) -> str:
+        return f"{base_url}?skip={s}&limit={limit}"
+    
+    links = PaginationLinks(
+        self=Link(href=build_page_url(skip), method="GET"),
+        first=Link(href=build_page_url(0), method="GET"),
+    )
+    
+    if skip + limit < total:
+        links.next = Link(href=build_page_url(skip + limit), method="GET")
+    
+    if skip > 0:
+        prev_skip = max(0, skip - limit)
+        links.prev = Link(href=build_page_url(prev_skip), method="GET")
+    
+    return links
