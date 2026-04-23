@@ -145,10 +145,16 @@ def resolve_term_for_storage(
     if term is None:
         return None
     
+    result = {}
     term_id = term.get("id")
+    term_name = term.get("name")
+    
     if term_id:
-        return {"termId": str(term_id)}
-    return {"name": term.get("name")}
+        result["termId"] = str(term_id)
+    if term_name:
+        result["name"] = term_name
+    
+    return result if result else None
 
 
 def build_term_ref_response(
