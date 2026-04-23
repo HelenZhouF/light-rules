@@ -27,8 +27,14 @@ class TermRef(BaseModel):
         return self
 
 
-class TermRefResponse(SignatureTerm):
-    pass
+class TermRefResponse(BaseModel):
+    id: Optional[uuid.UUID] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    dataType: Optional[DataType] = None
+    direction: Optional[Direction] = None
+    length: Optional[int] = Field(None, ge=1)
+    defaultValue: Optional[Any] = None
+    dataGridExtension: Optional[List["TermRefResponse"]] = None
 
 
 class ConditionBase(BaseModel):
@@ -85,3 +91,6 @@ class ActionResponse(ActionResponseBase):
     id: uuid.UUID
     status: Optional[str] = None
     statusMessage: Optional[str] = None
+
+
+TermRefResponse.model_rebuild()
