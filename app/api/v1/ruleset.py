@@ -20,7 +20,7 @@ from app.schemas.rule import (
     convert_actions_with_signature,
 )
 from app.schemas.revision import (
-    RevisionCreate,
+    RevisionType,
     RevisionResponse,
     RevisionResponseData,
     RevisionListResponse,
@@ -284,7 +284,8 @@ async def read_revision(
 @router.post("/{ruleset_id}/revisions", response_model=dict, status_code=status.HTTP_201_CREATED)
 async def create_new_revision(
     ruleset_id: uuid.UUID,
-    revision_in: RevisionCreate = RevisionCreate(),
+    revisionType: RevisionType = Query(default=RevisionType.minor, description="Version type: major or minor"),
+    ruleset_update: Optional[RuleSetUpdate] = None,
     db: AsyncSession = Depends(get_async_session),
 ):
     ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
@@ -300,9 +301,18 @@ async def create_new_revision(
             detail="RuleSet is locked and cannot be versioned",
         )
     
+    if ruleset_update and ruleset_update.name and ruleset_update.name != ruleset.name:
+        existing_ruleset = await get_ruleset_by_name(db, name=ruleset_update.name)
+        if existing_ruleset:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="RuleSet with this name already exists",
+            )
+    
     revision = await create_revision(
         db=db,
         ruleset_id=ruleset_id,
-        revision_type=revision_in.revisionType,
+        revision_type=revisionType,
+        ruleset_update=ruleset_update,
     )
     return revision_to_response(ruleset_id, revision)
