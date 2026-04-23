@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from pydantic import BaseModel
 from sqlalchemy import select, func
@@ -72,6 +72,83 @@ def detect_term_renames_by_id(
     return name_mapping
 
 
+def reconcile_signature_ids(
+    old_signature: Optional[List[Dict[str, Any]]],
+    new_signature: Optional[List[Dict[str, Any]]],
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    智能复用旧 signature 的 id：
+    1. 对于新 signature 中的 term，如果 name 在旧 signature 中存在，复用旧 id（即使新 term 有自动生成的 id）
+    2. 尝试检测"重命名"场景：旧 name 不在新 signature 中，新 name 不在旧 signature 中，且位置相同
+    3. 如果 name 相同但 id 不同，认为是更新，保持旧 id
+    """
+    if new_signature is None:
+        return None
+    
+    if old_signature is None:
+        return new_signature
+    
+    old_name_to_term: Dict[str, Dict[str, Any]] = {}
+    old_index_to_term: Dict[int, Dict[str, Any]] = {}
+    for i, term in enumerate(old_signature):
+        term_dict = _term_to_dict(term)
+        if term_dict and "name" in term_dict:
+            old_name_to_term[term_dict["name"]] = term_dict
+        old_index_to_term[i] = term_dict
+    
+    new_names: Set[str] = set()
+    for term in new_signature:
+        term_dict = _term_to_dict(term)
+        if term_dict and "name" in term_dict:
+            new_names.add(term_dict["name"])
+    
+    old_names: Set[str] = set(old_name_to_term.keys())
+    
+    removed_names = old_names - new_names
+    added_names = new_names - old_names
+    
+    result = []
+    for i, new_term in enumerate(new_signature):
+        new_term_dict = _term_to_dict(new_term)
+        if new_term_dict is None:
+            result.append(new_term)
+            continue
+        
+        new_term_id = new_term_dict.get("id")
+        new_term_name = new_term_dict.get("name")
+        
+        if new_term_name:
+            if new_term_name in old_name_to_term:
+                old_term = old_name_to_term[new_term_name]
+                old_id = old_term.get("id")
+                if old_id:
+                    if new_term_id:
+                        if str(old_id) != str(new_term_id):
+                            new_term_dict["id"] = str(old_id) if isinstance(old_id, str) else old_id
+                    else:
+                        new_term_dict["id"] = old_id
+            elif len(removed_names) == 1 and len(added_names) == 1:
+                removed_name = next(iter(removed_names))
+                if new_term_name in added_names:
+                    old_term = old_name_to_term.get(removed_name)
+                    if old_term:
+                        old_id = old_term.get("id")
+                        if old_id:
+                            new_term_dict["id"] = old_id
+            elif i < len(old_signature):
+                old_term = old_index_to_term.get(i)
+                if old_term:
+                    old_name = old_term.get("name")
+                    if old_name in removed_names:
+                        old_id = old_term.get("id")
+                        if old_id:
+                            new_term_dict["id"] = old_id
+        
+        result.append(new_term_dict)
+    
+    return result
+
+
 def update_term_refs_in_list(
     items: Optional[List[Dict[str, Any]]],
     name_mapping: Dict[str, str],
@@ -81,6 +158,7 @@ def update_term_refs_in_list(
         return items
     
     new_name_to_id = build_term_maps_by_name(new_signature)
+    new_id_to_term = build_term_maps_by_id(new_signature)
     
     updated = []
     for item in items:
@@ -88,18 +166,48 @@ def update_term_refs_in_list(
             item_copy = dict(item)
             term = item_copy.get("term")
             if isinstance(term, dict):
-                if "termId" in term and term["termId"]:
-                    pass
-                elif "name" in term:
-                    old_name = term["name"]
-                    if old_name in name_mapping:
-                        new_name = name_mapping[old_name]
-                        if new_name in new_name_to_id:
-                            item_copy["term"] = {"termId": str(new_name_to_id[new_name])}
-                        else:
-                            item_copy["term"] = {"name": new_name}
-                    elif old_name in new_name_to_id:
-                        item_copy["term"] = {"termId": str(new_name_to_id[old_name])}
+                term_id = term.get("termId")
+                term_name = term.get("name")
+                
+                term_id_valid = False
+                if term_id:
+                    try:
+                        term_uuid = uuid.UUID(str(term_id))
+                        if term_uuid in new_id_to_term:
+                            term_id_valid = True
+                    except (ValueError, TypeError):
+                        pass
+                
+                if term_id_valid:
+                    new_term = new_id_to_term.get(uuid.UUID(str(term_id)))
+                    if new_term:
+                        new_term_name = new_term.get("name")
+                        if term_name and term_name != new_term_name:
+                            item_copy["term"] = {
+                                "termId": term_id,
+                                "name": new_term_name
+                            }
+                        elif not term_name and new_term_name:
+                            item_copy["term"] = {
+                                "termId": term_id,
+                                "name": new_term_name
+                            }
+                else:
+                    if term_name:
+                        if term_name in name_mapping:
+                            new_name = name_mapping[term_name]
+                            if new_name in new_name_to_id:
+                                item_copy["term"] = {
+                                    "termId": str(new_name_to_id[new_name]),
+                                    "name": new_name
+                                }
+                            else:
+                                item_copy["term"] = {"name": new_name}
+                        elif term_name in new_name_to_id:
+                            item_copy["term"] = {
+                                "termId": str(new_name_to_id[term_name]),
+                                "name": term_name
+                            }
             updated.append(item_copy)
         else:
             updated.append(item)
@@ -147,6 +255,32 @@ async def create_ruleset(
     return ruleset
 
 
+def _signature_terms_to_dicts(
+    signature: Optional[List[Any]]
+) -> Optional[List[Dict[str, Any]]]:
+    """
+    将 signature 中的 SignatureTerm 转换为 dict，确保 id 被包含。
+    解决 model_dump(exclude_unset=True) 排除自动生成 id 的问题。
+    """
+    if signature is None:
+        return None
+    
+    result = []
+    for term in signature:
+        if isinstance(term, BaseModel):
+            term_dict = term.model_dump()
+            if "id" in term_dict and isinstance(term_dict["id"], uuid.UUID):
+                term_dict["id"] = str(term_dict["id"])
+            result.append(term_dict)
+        elif isinstance(term, dict):
+            term_dict = dict(term)
+            if "id" in term_dict and isinstance(term_dict["id"], uuid.UUID):
+                term_dict["id"] = str(term_dict["id"])
+            result.append(term_dict)
+    
+    return result if result else None
+
+
 async def update_ruleset(
     db: AsyncSession,
     ruleset_id: uuid.UUID,
@@ -164,9 +298,22 @@ async def update_ruleset(
     update_data["modified_by"] = modified_by
 
     old_signature = ruleset.signature
+    
+    new_signature_input = None
+    if ruleset_in.signature is not None:
+        new_signature_input = _signature_terms_to_dicts(ruleset_in.signature)
+    
+    if new_signature_input is not None:
+        update_data["signature"] = new_signature_input
+    
     new_signature = update_data.get("signature")
     
     if new_signature is not None:
+        reconciled_signature = reconcile_signature_ids(old_signature, new_signature)
+        if reconciled_signature is not None:
+            new_signature = reconciled_signature
+            update_data["signature"] = new_signature
+        
         name_mapping = detect_term_renames_by_id(old_signature, new_signature)
         
         if name_mapping or new_signature:
