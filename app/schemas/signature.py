@@ -1,3 +1,4 @@
+import uuid
 from enum import Enum
 from typing import List, Optional, Any
 
@@ -19,6 +20,7 @@ class Direction(str, Enum):
 
 
 class SignatureTerm(BaseModel):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
     name: str = Field(..., min_length=1, max_length=255)
     dataType: DataType
     direction: Optional[Direction] = None

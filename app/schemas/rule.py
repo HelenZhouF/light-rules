@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Any, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -11,6 +11,7 @@ from app.schemas.condition_action import (
     ActionCreate,
     ActionResponse,
     TermRef,
+    TermRefResponse,
 )
 
 
@@ -34,38 +35,6 @@ def convert_actions_value(
     return None
 
 
-def convert_conditions_response(
-    value: Optional[List[Any]]
-) -> Optional[List[ConditionResponse]]:
-    if value is None:
-        return None
-    if isinstance(value, list):
-        result = []
-        for item in value:
-            if isinstance(item, dict):
-                result.append(ConditionResponse(**item))
-            elif isinstance(item, ConditionResponse):
-                result.append(item)
-        return result
-    return None
-
-
-def convert_actions_response(
-    value: Optional[List[Any]]
-) -> Optional[List[ActionResponse]]:
-    if value is None:
-        return None
-    if isinstance(value, list):
-        result = []
-        for item in value:
-            if isinstance(item, dict):
-                result.append(ActionResponse(**item))
-            elif isinstance(item, ActionResponse):
-                result.append(item)
-        return result
-    return None
-
-
 def get_valid_term_names(signature: Optional[List[Any]]) -> Set[str]:
     valid_names = set()
     if signature:
@@ -75,24 +44,167 @@ def get_valid_term_names(signature: Optional[List[Any]]) -> Set[str]:
     return valid_names
 
 
+def build_signature_term_maps(
+    signature: Optional[List[Any]]
+) -> Tuple[Dict[uuid.UUID, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    terms_by_id: Dict[uuid.UUID, Dict[str, Any]] = {}
+    terms_by_name: Dict[str, Dict[str, Any]] = {}
+    
+    if signature:
+        for term in signature:
+            if isinstance(term, dict):
+                if "id" in term:
+                    try:
+                        term_id = uuid.UUID(str(term["id"]))
+                        terms_by_id[term_id] = term
+                    except (ValueError, TypeError):
+                        pass
+                if "name" in term:
+                    terms_by_name[term["name"]] = term
+    
+    return terms_by_id, terms_by_name
+
+
+def find_term_in_signature(
+    term_ref: TermRef,
+    terms_by_id: Dict[uuid.UUID, Dict[str, Any]],
+    terms_by_name: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if term_ref.termId and term_ref.termId in terms_by_id:
+        return terms_by_id[term_ref.termId]
+    if term_ref.name and term_ref.name in terms_by_name:
+        return terms_by_name[term_ref.name]
+    return None
+
+
+def get_term_identifier(term_ref: TermRef) -> str:
+    if term_ref.termId:
+        return str(term_ref.termId)
+    if term_ref.name:
+        return term_ref.name
+    return "unknown"
+
+
 def validate_terms(
     conditions: Optional[List[ConditionCreate]],
     actions: Optional[List[ActionCreate]],
-    valid_term_names: Set[str],
+    signature_or_valid_names: Any,
 ) -> List[str]:
     errors = []
     
-    if conditions:
-        for i, cond in enumerate(conditions):
-            if cond.term and cond.term.name not in valid_term_names:
-                errors.append(f"Condition[{i}]: term '{cond.term.name}' not found in ruleset signature")
-    
-    if actions:
-        for i, action in enumerate(actions):
-            if action.term and action.term.name not in valid_term_names:
-                errors.append(f"Action[{i}]: term '{action.term.name}' not found in ruleset signature")
+    if isinstance(signature_or_valid_names, set):
+        valid_names = signature_or_valid_names
+        if conditions:
+            for i, cond in enumerate(conditions):
+                if cond.term and cond.term.name and cond.term.name not in valid_names:
+                    errors.append(f"Condition[{i}]: term '{cond.term.name}' not found in ruleset signature")
+        
+        if actions:
+            for i, action in enumerate(actions):
+                if action.term and action.term.name and action.term.name not in valid_names:
+                    errors.append(f"Action[{i}]: term '{action.term.name}' not found in ruleset signature")
+    else:
+        signature = signature_or_valid_names
+        terms_by_id, terms_by_name = build_signature_term_maps(signature)
+        
+        if conditions:
+            for i, cond in enumerate(conditions):
+                if cond.term:
+                    term = find_term_in_signature(cond.term, terms_by_id, terms_by_name)
+                    if term is None:
+                        identifier = get_term_identifier(cond.term)
+                        errors.append(f"Condition[{i}]: term '{identifier}' not found in ruleset signature")
+        
+        if actions:
+            for i, action in enumerate(actions):
+                if action.term:
+                    term = find_term_in_signature(action.term, terms_by_id, terms_by_name)
+                    if term is None:
+                        identifier = get_term_identifier(action.term)
+                        errors.append(f"Action[{i}]: term '{identifier}' not found in ruleset signature")
     
     return errors
+
+
+def resolve_term_for_storage(
+    term_ref: TermRef,
+    terms_by_id: Dict[uuid.UUID, Dict[str, Any]],
+    terms_by_name: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    term = find_term_in_signature(term_ref, terms_by_id, terms_by_name)
+    if term is None:
+        return None
+    
+    term_id = term.get("id")
+    if term_id:
+        return {"termId": str(term_id)}
+    return {"name": term.get("name")}
+
+
+def convert_conditions_with_signature(
+    conditions: Optional[List[Any]],
+    signature: Optional[List[Any]],
+) -> Optional[List[ConditionResponse]]:
+    if conditions is None:
+        return None
+    if not isinstance(conditions, list):
+        return None
+    
+    terms_by_id, terms_by_name = build_signature_term_maps(signature)
+    result = []
+    
+    for item in conditions:
+        if not isinstance(item, dict):
+            continue
+        
+        item_copy = dict(item)
+        term_ref_data = item_copy.get("term")
+        
+        if isinstance(term_ref_data, dict):
+            term_ref = TermRef(
+                termId=term_ref_data.get("termId"),
+                name=term_ref_data.get("name"),
+            )
+            term = find_term_in_signature(term_ref, terms_by_id, terms_by_name)
+            if term:
+                item_copy["term"] = TermRefResponse(**term)
+        
+        result.append(ConditionResponse(**item_copy))
+    
+    return result
+
+
+def convert_actions_with_signature(
+    actions: Optional[List[Any]],
+    signature: Optional[List[Any]],
+) -> Optional[List[ActionResponse]]:
+    if actions is None:
+        return None
+    if not isinstance(actions, list):
+        return None
+    
+    terms_by_id, terms_by_name = build_signature_term_maps(signature)
+    result = []
+    
+    for item in actions:
+        if not isinstance(item, dict):
+            continue
+        
+        item_copy = dict(item)
+        term_ref_data = item_copy.get("term")
+        
+        if isinstance(term_ref_data, dict):
+            term_ref = TermRef(
+                termId=term_ref_data.get("termId"),
+                name=term_ref_data.get("name"),
+            )
+            term = find_term_in_signature(term_ref, terms_by_id, terms_by_name)
+            if term:
+                item_copy["term"] = TermRefResponse(**term)
+        
+        result.append(ActionResponse(**item_copy))
+    
+    return result
 
 
 class RuleBase(BaseModel):
@@ -149,16 +261,6 @@ class RuleResponseData(BaseModel):
     created_datetime: datetime
     modified_by: Optional[str]
     modified_datetime: datetime
-
-    @field_validator("conditions", mode="before")
-    @classmethod
-    def validate_conditions_response(cls, value: Any) -> Any:
-        return convert_conditions_response(value)
-
-    @field_validator("actions", mode="before")
-    @classmethod
-    def validate_actions_response(cls, value: Any) -> Any:
-        return convert_actions_response(value)
 
     model_config = {
         "from_attributes": True,

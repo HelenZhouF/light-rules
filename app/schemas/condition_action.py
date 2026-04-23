@@ -2,7 +2,9 @@ import uuid
 from enum import Enum
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.signature import SignatureTerm
 
 
 class ConditionType(str, Enum):
@@ -15,7 +17,18 @@ class ActionType(str, Enum):
 
 
 class TermRef(BaseModel):
-    name: str = Field(..., min_length=1, max_length=255)
+    termId: Optional[uuid.UUID] = None
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+
+    @model_validator(mode="after")
+    def validate_term_ref(self) -> "TermRef":
+        if self.termId is None and self.name is None:
+            raise ValueError("Either termId or name must be provided")
+        return self
+
+
+class TermRefResponse(SignatureTerm):
+    pass
 
 
 class ConditionBase(BaseModel):
@@ -34,14 +47,16 @@ class ConditionUpdate(BaseModel):
     type: Optional[ConditionType] = None
 
 
-class ConditionResponse(ConditionBase):
+class ConditionResponseBase(BaseModel):
+    term: TermRefResponse
+    expression: str
+    type: ConditionType = ConditionType.EXPRESSION
+
+
+class ConditionResponse(ConditionResponseBase):
     id: uuid.UUID
     status: Optional[str] = None
     statusMessage: Optional[str] = None
-
-    model_config = {
-        "from_attributes": True,
-    }
 
 
 class ActionBase(BaseModel):
@@ -60,11 +75,13 @@ class ActionUpdate(BaseModel):
     type: Optional[ActionType] = None
 
 
-class ActionResponse(ActionBase):
+class ActionResponseBase(BaseModel):
+    term: TermRefResponse
+    expression: str
+    type: ActionType = ActionType.ASSIGNMENT
+
+
+class ActionResponse(ActionResponseBase):
     id: uuid.UUID
     status: Optional[str] = None
     statusMessage: Optional[str] = None
-
-    model_config = {
-        "from_attributes": True,
-    }
