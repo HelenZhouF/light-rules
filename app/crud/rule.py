@@ -7,12 +7,34 @@ from sqlalchemy.orm import selectinload
 
 from app.models.rule import Rule
 from app.models.ruleset import RuleSet
-from app.schemas.rule import RuleCreate, RuleUpdate
-from app.schemas.condition_action import ConditionCreate, ActionCreate
+from app.schemas.rule import (
+    RuleCreate,
+    RuleUpdate,
+    build_signature_term_maps,
+    resolve_term_for_storage,
+)
+from app.schemas.condition_action import ConditionCreate, ActionCreate, TermRef
+
+
+def process_term_ref_for_storage(
+    term: Any,
+    terms_by_id: Dict[uuid.UUID, Dict[str, Any]],
+    terms_by_name: Dict[str, Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    if isinstance(term, TermRef):
+        return resolve_term_for_storage(term, terms_by_id, terms_by_name)
+    elif isinstance(term, dict):
+        term_ref = TermRef(
+            termId=term.get("termId"),
+            name=term.get("name"),
+        )
+        return resolve_term_for_storage(term_ref, terms_by_id, terms_by_name)
+    return None
 
 
 def process_conditions_for_storage(
     conditions: Optional[List[ConditionCreate]],
+    signature: Optional[List[Any]] = None,
     existing_conditions: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[List[Dict[str, Any]]]:
     if conditions is None:
@@ -21,11 +43,7 @@ def process_conditions_for_storage(
     if not conditions:
         return []
     
-    existing_by_id = {}
-    if existing_conditions:
-        for cond in existing_conditions:
-            if isinstance(cond, dict) and "id" in cond:
-                existing_by_id[cond["id"]] = cond
+    terms_by_id, terms_by_name = build_signature_term_maps(signature)
     
     result = []
     for cond in conditions:
@@ -33,6 +51,14 @@ def process_conditions_for_storage(
         cond_dict["id"] = str(uuid.uuid4())
         cond_dict["status"] = None
         cond_dict["statusMessage"] = None
+        
+        if "term" in cond_dict:
+            processed_term = process_term_ref_for_storage(
+                cond.term, terms_by_id, terms_by_name
+            )
+            if processed_term:
+                cond_dict["term"] = processed_term
+        
         result.append(cond_dict)
     
     return result
@@ -40,6 +66,7 @@ def process_conditions_for_storage(
 
 def process_actions_for_storage(
     actions: Optional[List[ActionCreate]],
+    signature: Optional[List[Any]] = None,
     existing_actions: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[List[Dict[str, Any]]]:
     if actions is None:
@@ -48,12 +75,22 @@ def process_actions_for_storage(
     if not actions:
         return []
     
+    terms_by_id, terms_by_name = build_signature_term_maps(signature)
+    
     result = []
     for action in actions:
         action_dict = action.model_dump()
         action_dict["id"] = str(uuid.uuid4())
         action_dict["status"] = None
         action_dict["statusMessage"] = None
+        
+        if "term" in action_dict:
+            processed_term = process_term_ref_for_storage(
+                action.term, terms_by_id, terms_by_name
+            )
+            if processed_term:
+                action_dict["term"] = processed_term
+        
         result.append(action_dict)
     
     return result
@@ -133,6 +170,7 @@ async def create_rule(
     db: AsyncSession,
     rule_in: RuleCreate,
     rule_set_id: uuid.UUID,
+    signature: Optional[List[Any]] = None,
     created_by: Optional[str] = None,
 ) -> Rule:
     rule_data = rule_in.model_dump(exclude={"conditions", "actions"})
@@ -140,8 +178,8 @@ async def create_rule(
     rule_data["created_by"] = created_by
     rule_data["modified_by"] = created_by
     
-    rule_data["conditions"] = process_conditions_for_storage(rule_in.conditions)
-    rule_data["actions"] = process_actions_for_storage(rule_in.actions)
+    rule_data["conditions"] = process_conditions_for_storage(rule_in.conditions, signature)
+    rule_data["actions"] = process_actions_for_storage(rule_in.actions, signature)
 
     rule = Rule(**rule_data)
     db.add(rule)
@@ -154,6 +192,7 @@ async def update_rule(
     db: AsyncSession,
     rule_id: uuid.UUID,
     rule_in: RuleUpdate,
+    signature: Optional[List[Any]] = None,
     modified_by: Optional[str] = None,
 ) -> Optional[Rule]:
     rule = await get_rule_by_id(db, rule_id)
@@ -165,12 +204,14 @@ async def update_rule(
     if rule_in.conditions is not None:
         update_data["conditions"] = process_conditions_for_storage(
             rule_in.conditions,
+            signature,
             rule.conditions
         )
     
     if rule_in.actions is not None:
         update_data["actions"] = process_actions_for_storage(
             rule_in.actions,
+            signature,
             rule.actions
         )
     

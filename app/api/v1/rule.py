@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +11,9 @@ from app.schemas.rule import (
     RuleResponse,
     RuleResponseData,
     RuleListResponse,
-    get_valid_term_names,
     validate_terms,
+    convert_conditions_with_signature,
+    convert_actions_with_signature,
 )
 from app.crud import (
     get_ruleset_by_id,
@@ -27,14 +28,34 @@ from app.crud.rule import (
     create_rule,
     update_rule,
     delete_rule,
+    process_conditions_for_storage,
+    process_actions_for_storage,
 )
 from app.utils.hateoas import build_rule_links, build_rule_pagination_links
 
 router = APIRouter(prefix="/rulesets/{ruleset_id}/rules", tags=["rules"])
 
 
-def rule_to_response(rule, ruleset_is_locked: bool) -> dict:
-    data = RuleResponseData.model_validate(rule)
+def rule_to_response(rule, signature: Optional[List[Any]], ruleset_is_locked: bool) -> dict:
+    conditions = convert_conditions_with_signature(rule.conditions, signature)
+    actions = convert_actions_with_signature(rule.actions, signature)
+    
+    data_dict = {
+        "name": rule.name,
+        "description": rule.description,
+        "conditional": rule.conditional,
+        "order_index": rule.order_index,
+        "id": rule.id,
+        "rule_set_id": rule.rule_set_id,
+        "conditions": conditions,
+        "actions": actions,
+        "created_by": rule.created_by,
+        "created_datetime": rule.created_datetime,
+        "modified_by": rule.modified_by,
+        "modified_datetime": rule.modified_datetime,
+    }
+    
+    data = RuleResponseData(**data_dict)
     links = build_rule_links(rule.rule_set_id, rule.id, ruleset_is_locked)
     response = RuleResponse(**data.model_dump(), _links=links)
     return response.model_dump(by_alias=True, exclude_none=True)
@@ -57,7 +78,7 @@ async def read_rules(
     total = await count_rules_by_ruleset(db, rule_set_id=ruleset_id)
     rules = await get_rules_by_ruleset_id(db, rule_set_id=ruleset_id, skip=skip, limit=limit)
     
-    items = [rule_to_response(r, ruleset.is_locked) for r in rules]
+    items = [rule_to_response(r, ruleset.signature, ruleset.is_locked) for r in rules]
     pagination_links = build_rule_pagination_links(ruleset_id, skip, limit, total)
     
     response = RuleListResponse(
@@ -91,7 +112,7 @@ async def read_rule(
             detail="Rule not found in this RuleSet",
         )
     
-    return rule_to_response(rule, rule.ruleset.is_locked)
+    return rule_to_response(rule, rule.ruleset.signature, rule.ruleset.is_locked)
 
 
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
@@ -113,8 +134,7 @@ async def create_new_rule(
             detail="RuleSet is locked and cannot be modified",
         )
     
-    valid_term_names = get_valid_term_names(ruleset.signature)
-    validation_errors = validate_terms(rule_in.conditions, rule_in.actions, valid_term_names)
+    validation_errors = validate_terms(rule_in.conditions, rule_in.actions, ruleset.signature)
     if validation_errors:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -139,8 +159,13 @@ async def create_new_rule(
             detail="Rule with this order_index already exists in this RuleSet",
         )
     
-    rule = await create_rule(db=db, rule_in=rule_in, rule_set_id=ruleset_id)
-    return rule_to_response(rule, ruleset.is_locked)
+    rule = await create_rule(
+        db=db, 
+        rule_in=rule_in, 
+        rule_set_id=ruleset_id,
+        signature=ruleset.signature,
+    )
+    return rule_to_response(rule, ruleset.signature, ruleset.is_locked)
 
 
 @router.put("/{rule_id}", response_model=dict, status_code=status.HTTP_200_OK)
@@ -169,9 +194,8 @@ async def update_existing_rule(
             detail="RuleSet is locked and cannot be modified",
         )
     
-    valid_term_names = get_valid_term_names(rule.ruleset.signature)
     if rule_in.conditions is not None or rule_in.actions is not None:
-        validation_errors = validate_terms(rule_in.conditions, rule_in.actions, valid_term_names)
+        validation_errors = validate_terms(rule_in.conditions, rule_in.actions, rule.ruleset.signature)
         if validation_errors:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -202,8 +226,9 @@ async def update_existing_rule(
         db=db,
         rule_id=rule_id,
         rule_in=rule_in,
+        signature=rule.ruleset.signature,
     )
-    return rule_to_response(updated_rule, rule.ruleset.is_locked)
+    return rule_to_response(updated_rule, rule.ruleset.signature, rule.ruleset.is_locked)
 
 
 @router.delete("/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
