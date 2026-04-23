@@ -11,6 +11,8 @@ from app.schemas.rule import (
     RuleResponse,
     RuleResponseData,
     RuleListResponse,
+    get_valid_term_names,
+    validate_terms,
 )
 from app.crud import (
     get_ruleset_by_id,
@@ -111,6 +113,14 @@ async def create_new_rule(
             detail="RuleSet is locked and cannot be modified",
         )
     
+    valid_term_names = get_valid_term_names(ruleset.signature)
+    validation_errors = validate_terms(rule_in.conditions, rule_in.actions, valid_term_names)
+    if validation_errors:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="; ".join(validation_errors),
+        )
+    
     existing_rule_by_name = await get_rule_by_name_and_ruleset(
         db, name=rule_in.name, rule_set_id=ruleset_id
     )
@@ -158,6 +168,15 @@ async def update_existing_rule(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="RuleSet is locked and cannot be modified",
         )
+    
+    valid_term_names = get_valid_term_names(rule.ruleset.signature)
+    if rule_in.conditions is not None or rule_in.actions is not None:
+        validation_errors = validate_terms(rule_in.conditions, rule_in.actions, valid_term_names)
+        if validation_errors:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="; ".join(validation_errors),
+            )
     
     if rule_in.name and rule_in.name != rule.name:
         existing_rule_by_name = await get_rule_by_name_and_ruleset(
