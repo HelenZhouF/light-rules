@@ -141,6 +141,32 @@ def resolve_term_for_storage(
     return {"name": term.get("name")}
 
 
+def build_term_ref_response(
+    term_ref_data: Dict[str, Any],
+    terms_by_id: Dict[uuid.UUID, Dict[str, Any]],
+    terms_by_name: Dict[str, Dict[str, Any]],
+) -> TermRefResponse:
+    term_ref = TermRef(
+        termId=term_ref_data.get("termId"),
+        name=term_ref_data.get("name"),
+    )
+    term = find_term_in_signature(term_ref, terms_by_id, terms_by_name)
+    if term:
+        return TermRefResponse(**term)
+    
+    term_id = term_ref_data.get("termId")
+    if term_id:
+        try:
+            term_id = uuid.UUID(str(term_id))
+        except (ValueError, TypeError):
+            term_id = None
+    
+    return TermRefResponse(
+        id=term_id,
+        name=term_ref_data.get("name"),
+    )
+
+
 def convert_conditions_with_signature(
     conditions: Optional[List[Any]],
     signature: Optional[List[Any]],
@@ -161,13 +187,9 @@ def convert_conditions_with_signature(
         term_ref_data = item_copy.get("term")
         
         if isinstance(term_ref_data, dict):
-            term_ref = TermRef(
-                termId=term_ref_data.get("termId"),
-                name=term_ref_data.get("name"),
+            item_copy["term"] = build_term_ref_response(
+                term_ref_data, terms_by_id, terms_by_name
             )
-            term = find_term_in_signature(term_ref, terms_by_id, terms_by_name)
-            if term:
-                item_copy["term"] = TermRefResponse(**term)
         
         result.append(ConditionResponse(**item_copy))
     
@@ -194,13 +216,9 @@ def convert_actions_with_signature(
         term_ref_data = item_copy.get("term")
         
         if isinstance(term_ref_data, dict):
-            term_ref = TermRef(
-                termId=term_ref_data.get("termId"),
-                name=term_ref_data.get("name"),
+            item_copy["term"] = build_term_ref_response(
+                term_ref_data, terms_by_id, terms_by_name
             )
-            term = find_term_in_signature(term_ref, terms_by_id, terms_by_name)
-            if term:
-                item_copy["term"] = TermRefResponse(**term)
         
         result.append(ActionResponse(**item_copy))
     
