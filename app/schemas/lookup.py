@@ -33,26 +33,9 @@ class LookupEntryUpdate(BaseModel):
     value: Optional[str] = Field(None, min_length=1, max_length=1000)
 
 
-class LookupEntryResponseData(LookupEntryBase):
-    id: uuid.UUID
-    lookup_id: uuid.UUID
-    created_by: Optional[str]
-    created_datetime: datetime
-    modified_by: Optional[str]
-    modified_datetime: datetime
-
+class LookupEntryResponse(LookupEntryBase):
     model_config = {
         "from_attributes": True,
-    }
-
-
-class LookupEntryResponse(LookupEntryResponseData):
-    links: ResourceLinks = Field(..., alias="_links")
-
-    model_config = {
-        "populate_by_name": True,
-        "by_alias": True,
-        "exclude_none": True,
     }
 
 
