@@ -110,8 +110,8 @@ def build_revision_links(
     
     links = ResourceLinks(
         self=Link(href=base_url, method="GET"),
-        up=Link(href=ruleset_url, method="GET"),
-        collection=Link(href=revisions_url, method="GET"),
+        up=Link(href=revisions_url, method="GET"),
+        ruleset=Link(href=ruleset_url, method="GET"),
     )
     
     if not is_locked:
