@@ -25,6 +25,13 @@ from app.schemas.revision import (
     RevisionResponseData,
     RevisionListResponse,
 )
+from app.schemas.execution import (
+    ExecutionRequest,
+    ExecutionResponse,
+    RuleExecutionResult,
+    ConditionExecutionResult,
+    ActionExecutionResult,
+)
 from app.crud import (
     get_ruleset_by_id,
     get_ruleset_by_name,
@@ -41,6 +48,7 @@ from app.crud.ruleset import (
     create_revision,
 )
 from app.crud.rule import get_ruleset_with_rules
+from app.services.execution import execute_ruleset as execute_ruleset_service
 from app.utils.hateoas import (
     build_ruleset_links,
     build_pagination_links,
@@ -316,3 +324,111 @@ async def create_new_revision(
         ruleset_update=ruleset_update,
     )
     return revision_to_response(ruleset_id, revision)
+
+
+def execution_result_to_response(result) -> dict:
+    rule_results = []
+    for rule_result in result.rules:
+        condition_results = []
+        for cond_result in rule_result.conditions:
+            condition_results.append(ConditionExecutionResult(
+                id=cond_result.condition_id,
+                termName=cond_result.term_name,
+                expression=cond_result.expression,
+                result=cond_result.result,
+                error=cond_result.error,
+            ))
+        
+        action_results = []
+        for action_result in rule_result.actions:
+            action_results.append(ActionExecutionResult(
+                id=action_result.action_id,
+                termName=action_result.term_name,
+                expression=action_result.expression,
+                value=action_result.value,
+                error=action_result.error,
+            ))
+        
+        rule_results.append(RuleExecutionResult(
+            id=rule_result.rule_id,
+            name=rule_result.rule_name,
+            orderIndex=rule_result.order_index,
+            conditional=rule_result.conditional,
+            conditionsPassed=rule_result.conditions_passed,
+            conditions=condition_results,
+            actions=action_results,
+            error=rule_result.error,
+        ))
+    
+    response = ExecutionResponse(
+        success=result.success,
+        output=result.output,
+        rules=rule_results,
+        error=result.error,
+    )
+    return response.model_dump(by_alias=True, exclude_none=True)
+
+
+@router.post("/{ruleset_id}/execute", response_model=dict, status_code=status.HTTP_200_OK)
+async def execute_ruleset_endpoint(
+    ruleset_id: uuid.UUID,
+    request: ExecutionRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    result = await execute_ruleset_service(
+        db=db,
+        ruleset_id=ruleset_id,
+        input_data=request.input,
+    )
+    
+    if not result.success and result.error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.error,
+        )
+    
+    return execution_result_to_response(result)
+
+
+@router.post("/{ruleset_id}/revisions/{revision_id}/execute", response_model=dict, status_code=status.HTTP_200_OK)
+async def execute_revision_endpoint(
+    ruleset_id: uuid.UUID,
+    revision_id: uuid.UUID,
+    request: ExecutionRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    revision = await get_revision_by_id(db, ruleset_id=ruleset_id, revision_id=revision_id)
+    if revision is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Revision not found",
+        )
+    
+    result = await execute_ruleset_service(
+        db=db,
+        ruleset_id=ruleset_id,
+        input_data=request.input,
+        revision_id=revision_id,
+    )
+    
+    if not result.success and result.error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.error,
+        )
+    
+    return execution_result_to_response(result)
