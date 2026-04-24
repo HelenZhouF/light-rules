@@ -510,7 +510,6 @@ async def create_revision(
     else:
         ruleset.minor += 1
 
-    ruleset.version += 1
     ruleset.modified_by = created_by
 
     await lock_all_revisions(db, ruleset_id)
