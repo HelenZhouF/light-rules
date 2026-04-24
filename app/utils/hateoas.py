@@ -144,3 +144,90 @@ def build_revision_pagination_links(
         links.prev = Link(href=build_page_url(prev_skip), method="GET")
     
     return links
+
+
+DOMAIN_API_BASE = "/api/v1/domains"
+
+
+def build_domain_links(
+    domain_id: uuid.UUID,
+) -> ResourceLinks:
+    base_url = f"{DOMAIN_API_BASE}/{domain_id}"
+    
+    links = ResourceLinks(
+        self=Link(href=base_url, method="GET"),
+        entries=Link(href=f"{base_url}/entries", method="GET"),
+    )
+    
+    links.update = Link(href=base_url, method="PUT")
+    links.delete = Link(href=base_url, method="DELETE")
+    links.addEntries = Link(href=f"{base_url}/entries", method="POST")
+    links.patchEntries = Link(href=f"{base_url}/entries", method="PATCH")
+    
+    return links
+
+
+def build_domain_pagination_links(
+    skip: int,
+    limit: int,
+    total: int,
+) -> PaginationLinks:
+    base_url = DOMAIN_API_BASE
+    
+    def build_page_url(s: int) -> str:
+        return f"{base_url}?skip={s}&limit={limit}"
+    
+    links = PaginationLinks(
+        self=Link(href=build_page_url(skip), method="GET"),
+        first=Link(href=build_page_url(0), method="GET"),
+    )
+    
+    if skip + limit < total:
+        links.next = Link(href=build_page_url(skip + limit), method="GET")
+    
+    if skip > 0:
+        prev_skip = max(0, skip - limit)
+        links.prev = Link(href=build_page_url(prev_skip), method="GET")
+    
+    return links
+
+
+def build_entry_links(
+    domain_id: uuid.UUID,
+    entry_key: str,
+) -> ResourceLinks:
+    base_url = f"{DOMAIN_API_BASE}/{domain_id}/entries"
+    domain_url = f"{DOMAIN_API_BASE}/{domain_id}"
+    
+    links = ResourceLinks(
+        self=Link(href=f"{base_url}/{entry_key}", method="GET"),
+        up=Link(href=domain_url, method="GET"),
+    )
+    
+    return links
+
+
+def build_entry_pagination_links(
+    domain_id: uuid.UUID,
+    skip: int,
+    limit: int,
+    total: int,
+) -> PaginationLinks:
+    base_url = f"{DOMAIN_API_BASE}/{domain_id}/entries"
+    
+    def build_page_url(s: int) -> str:
+        return f"{base_url}?skip={s}&limit={limit}"
+    
+    links = PaginationLinks(
+        self=Link(href=build_page_url(skip), method="GET"),
+        first=Link(href=build_page_url(0), method="GET"),
+    )
+    
+    if skip + limit < total:
+        links.next = Link(href=build_page_url(skip + limit), method="GET")
+    
+    if skip > 0:
+        prev_skip = max(0, skip - limit)
+        links.prev = Link(href=build_page_url(prev_skip), method="GET")
+    
+    return links

@@ -17,6 +17,9 @@ class ResourceLinks(BaseModel):
     createRevision: Optional[Link] = None
     update: Optional[Link] = None
     delete: Optional[Link] = None
+    entries: Optional[Link] = None
+    addEntries: Optional[Link] = None
+    patchEntries: Optional[Link] = None
 
     model_config = {
         "exclude_none": True,
