@@ -426,22 +426,6 @@ async def create_revision(
     if not ruleset:
         return None
 
-    revision_data = {
-        "rule_set_id": ruleset.id,
-        "name": ruleset.name,
-        "ruleSetType": ruleset.ruleSetType,
-        "description": ruleset.description,
-        "signature": ruleset.signature,
-        "major": ruleset.major,
-        "minor": ruleset.minor,
-        "is_locked": True,
-        "created_by": created_by,
-        "modified_by": created_by,
-    }
-
-    revision = Revision(**revision_data)
-    db.add(revision)
-
     if revision_type == RevisionType.major:
         ruleset.major += 1
         ruleset.minor = 0
@@ -496,6 +480,22 @@ async def create_revision(
 
             for key, value in update_data.items():
                 setattr(ruleset, key, value)
+
+    revision_data = {
+        "rule_set_id": ruleset.id,
+        "name": ruleset.name,
+        "ruleSetType": ruleset.ruleSetType,
+        "description": ruleset.description,
+        "signature": ruleset.signature,
+        "major": ruleset.major,
+        "minor": ruleset.minor,
+        "is_locked": True,
+        "created_by": created_by,
+        "modified_by": created_by,
+    }
+
+    revision = Revision(**revision_data)
+    db.add(revision)
 
     await db.commit()
     await db.refresh(revision)
