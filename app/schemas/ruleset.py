@@ -61,7 +61,6 @@ class RuleSetUpdate(BaseModel):
     ruleSetType: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=1000)
     signature: Optional[List[SignatureTerm]] = None
-    is_locked: Optional[bool] = None
 
     @field_validator("signature", mode="before")
     @classmethod
