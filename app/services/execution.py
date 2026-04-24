@@ -46,11 +46,13 @@ COMPARISON_OPERATORS = [
 
 def parse_comparison_expression(expression: str) -> Tuple[ComparisonOperator, str]:
     expression = expression.strip()
+    
     for op_str, op in COMPARISON_OPERATORS:
         if expression.startswith(op_str):
             value = expression[len(op_str):].strip()
             return op, value
-    raise ExpressionEvaluationError(f"Unsupported comparison expression: {expression}")
+    
+    return ComparisonOperator.EQ, expression
 
 
 def _strip_quotes(value_str: str) -> str:

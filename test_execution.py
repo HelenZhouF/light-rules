@@ -448,6 +448,166 @@ def test_double_equals_operator():
     print("[OK] double equals operator tests passed!\n")
 
 
+def test_expression_without_operator():
+    print("=== Testing expression without operator (defaults to ==) ===")
+    
+    signature = [
+        {"id": str(uuid.uuid4()), "name": "v1", "dataType": "string", "direction": "input"},
+        {"id": str(uuid.uuid4()), "name": "v2", "dataType": "string", "direction": "output"},
+    ]
+    
+    class MockRule:
+        def __init__(self, name, order_index, conditional, conditions, actions):
+            self.id = uuid.uuid4()
+            self.name = name
+            self.order_index = order_index
+            self.conditional = conditional
+            self.conditions = conditions
+            self.actions = actions
+    
+    print("Test 1: expression = 'abc' (without quotes)")
+    rules1 = [
+        MockRule(
+            name="If v1=abc then v2=xyz",
+            order_index=0,
+            conditional="all",
+            conditions=[
+                {
+                    "id": "cond-1",
+                    "term": {"name": "v1"},
+                    "expression": "abc",
+                    "type": "expression",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+            actions=[
+                {
+                    "id": "act-1",
+                    "term": {"name": "v2"},
+                    "expression": "'xyz'",
+                    "type": "assignment",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+        )
+    ]
+    
+    print("  v1 = 'abc' (should match)")
+    result = execute_ruleset_with_data(signature, rules1, {"v1": "abc"})
+    print(f"    Success: {result.success}")
+    print(f"    Output: {result.output}")
+    print(f"    Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["v2"] == "xyz", f"Expected v2='xyz', got {result.output['v2']}"
+    print("    [OK]\n")
+    
+    print("  v1 = 'def' (should NOT match)")
+    result = execute_ruleset_with_data(signature, rules1, {"v1": "def"})
+    print(f"    Success: {result.success}")
+    print(f"    Output: {result.output}")
+    print(f"    Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["v2"] is None, f"Expected v2=None, got {result.output['v2']}"
+    print("    [OK]\n")
+    
+    print("Test 2: expression = \"'abc'\" (with single quotes)")
+    rules2 = [
+        MockRule(
+            name="If v1='abc' then v2=xyz",
+            order_index=0,
+            conditional="all",
+            conditions=[
+                {
+                    "id": "cond-1",
+                    "term": {"name": "v1"},
+                    "expression": "'abc'",
+                    "type": "expression",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+            actions=[
+                {
+                    "id": "act-1",
+                    "term": {"name": "v2"},
+                    "expression": "'xyz'",
+                    "type": "assignment",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+        )
+    ]
+    
+    print("  v1 = 'abc' (should match)")
+    result = execute_ruleset_with_data(signature, rules2, {"v1": "abc"})
+    print(f"    Success: {result.success}")
+    print(f"    Output: {result.output}")
+    print(f"    Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["v2"] == "xyz", f"Expected v2='xyz', got {result.output['v2']}"
+    print("    [OK]\n")
+    
+    print("  v1 = 'def' (should NOT match)")
+    result = execute_ruleset_with_data(signature, rules2, {"v1": "def"})
+    print(f"    Success: {result.success}")
+    print(f"    Output: {result.output}")
+    print(f"    Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["v2"] is None, f"Expected v2=None, got {result.output['v2']}"
+    print("    [OK]\n")
+    
+    print("Test 3: expression with numeric value (without operator)")
+    signature_num = [
+        {"id": str(uuid.uuid4()), "name": "age", "dataType": "decimal", "direction": "input"},
+        {"id": str(uuid.uuid4()), "name": "isAdult", "dataType": "boolean", "direction": "output"},
+    ]
+    
+    rules3 = [
+        MockRule(
+            name="If age=18 then isAdult=true",
+            order_index=0,
+            conditional="all",
+            conditions=[
+                {
+                    "id": "cond-1",
+                    "term": {"name": "age"},
+                    "expression": "18",
+                    "type": "expression",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+            actions=[
+                {
+                    "id": "act-1",
+                    "term": {"name": "isAdult"},
+                    "expression": "true",
+                    "type": "assignment",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+        )
+    ]
+    
+    print("  age = 18 (should match)")
+    result = execute_ruleset_with_data(signature_num, rules3, {"age": 18})
+    print(f"    Success: {result.success}")
+    print(f"    Output: {result.output}")
+    print(f"    Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["isAdult"] == True, f"Expected isAdult=True, got {result.output['isAdult']}"
+    print("    [OK]\n")
+    
+    print("  age = 25 (should NOT match)")
+    result = execute_ruleset_with_data(signature_num, rules3, {"age": 25})
+    print(f"    Success: {result.success}")
+    print(f"    Output: {result.output}")
+    print(f"    Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["isAdult"] is None, f"Expected isAdult=None, got {result.output['isAdult']}"
+    print("    [OK]\n")
+    
+    print("[OK] expression without operator tests passed!\n")
+
+
 def main():
     try:
         test_parse_comparison_expression()
@@ -458,6 +618,7 @@ def main():
         test_rule_execution_details()
         test_condition_not_met()
         test_double_equals_operator()
+        test_expression_without_operator()
         
         print("=== All tests passed! ===")
     except Exception as e:
