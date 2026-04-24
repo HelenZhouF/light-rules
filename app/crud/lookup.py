@@ -297,65 +297,99 @@ async def apply_json_patch(
 ) -> Dict[str, any]:
     lookup = await get_lookup_by_id(db, lookup_id)
     if not lookup:
-        return {"success": False, "error": "Lookup not found"}
+        return {
+            "success": False,
+            "error": "Lookup not found",
+            "added": [],
+            "replaced": [],
+            "removed": [],
+            "failures": [],
+            "has_failures": False,
+        }
 
     added: List[str] = []
     replaced: List[str] = []
     removed: List[str] = []
-    errors: List[str] = []
+    failures: List[Dict[str, any]] = []
 
     for op in operations:
         key = op.path[1:]
+        operation_result = {
+            "op": op.op,
+            "path": op.path,
+            "value": op.value,
+            "success": True,
+            "error": None,
+        }
 
-        if op.op == "add":
-            existing_entry = await get_entry_by_lookup_and_key(db, lookup_id, key)
-            if existing_entry:
-                errors.append(f"Key '{key}' already exists")
-                continue
+        try:
+            if op.op == "add":
+                existing_entry = await get_entry_by_lookup_and_key(db, lookup_id, key)
+                if existing_entry:
+                    operation_result["success"] = False
+                    operation_result["error"] = f"Key '{key}' already exists"
+                    failures.append(operation_result)
+                    continue
 
-            if op.value is None:
-                errors.append(f"Value is required for add operation on key '{key}'")
-                continue
+                if op.value is None:
+                    operation_result["success"] = False
+                    operation_result["error"] = f"Value is required for add operation on key '{key}'"
+                    failures.append(operation_result)
+                    continue
 
-            entry_data = {
-                "lookup_id": lookup_id,
-                "key": key,
-                "value": op.value,
-                "created_by": modified_by,
-                "modified_by": modified_by,
-            }
-            entry = LookupEntry(**entry_data)
-            db.add(entry)
-            added.append(key)
+                entry_data = {
+                    "lookup_id": lookup_id,
+                    "key": key,
+                    "value": op.value,
+                    "created_by": modified_by,
+                    "modified_by": modified_by,
+                }
+                entry = LookupEntry(**entry_data)
+                db.add(entry)
+                added.append(key)
 
-        elif op.op == "replace":
-            existing_entry = await get_entry_by_lookup_and_key(db, lookup_id, key)
-            if not existing_entry:
-                errors.append(f"Key '{key}' not found")
-                continue
+            elif op.op == "replace":
+                existing_entry = await get_entry_by_lookup_and_key(db, lookup_id, key)
+                if not existing_entry:
+                    operation_result["success"] = False
+                    operation_result["error"] = f"Key '{key}' not found"
+                    failures.append(operation_result)
+                    continue
 
-            if op.value is None:
-                errors.append(f"Value is required for replace operation on key '{key}'")
-                continue
+                if op.value is None:
+                    operation_result["success"] = False
+                    operation_result["error"] = f"Value is required for replace operation on key '{key}'"
+                    failures.append(operation_result)
+                    continue
 
-            existing_entry.value = op.value
-            existing_entry.modified_by = modified_by
-            replaced.append(key)
+                existing_entry.value = op.value
+                existing_entry.modified_by = modified_by
+                replaced.append(key)
 
-        elif op.op == "remove":
-            deleted = await delete_entry(db, lookup_id, key)
-            if deleted:
+            elif op.op == "remove":
+                existing_entry = await get_entry_by_lookup_and_key(db, lookup_id, key)
+                if not existing_entry:
+                    operation_result["success"] = False
+                    operation_result["error"] = f"Key '{key}' not found"
+                    failures.append(operation_result)
+                    continue
+
+                await db.delete(existing_entry)
                 removed.append(key)
-            else:
-                errors.append(f"Key '{key}' not found")
+
+        except Exception as e:
+            operation_result["success"] = False
+            operation_result["error"] = str(e)
+            failures.append(operation_result)
 
     lookup.modified_by = modified_by
     await db.commit()
 
     return {
-        "success": len(errors) == 0,
+        "success": True,
         "added": added,
         "replaced": replaced,
         "removed": removed,
-        "errors": errors if errors else None,
+        "failures": failures,
+        "has_failures": len(failures) > 0,
     }

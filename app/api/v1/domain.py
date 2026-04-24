@@ -16,6 +16,8 @@ from app.schemas.lookup import (
     LookupEntryResponse,
     LookupEntryListResponse,
     JsonPatchOperation,
+    PatchOperationResult,
+    JsonPatchResponse,
 )
 from app.crud.lookup import (
     get_lookup_by_id,
@@ -255,11 +257,41 @@ async def patch_entries(
         operations=operations,
     )
 
-    if not result["success"] and result.get("errors"):
+    if not result["success"] and result.get("error"):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result["errors"],
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result["error"],
         )
 
     updated_lookup = await get_lookup_with_entries(db, lookup_id=domain_id)
-    return domain_to_detail_response(updated_lookup)
+
+    entries_responses = []
+    for entry in updated_lookup.entries:
+        entry_data = LookupEntryResponse.model_validate(entry)
+        entries_responses.append(entry_data.model_dump())
+
+    failures = []
+    for failure in result.get("failures", []):
+        failures.append({
+            "op": failure["op"],
+            "path": failure["path"],
+            "value": failure.get("value"),
+            "success": failure["success"],
+            "error": failure.get("error"),
+        })
+
+    links = build_domain_links(domain_id)
+
+    response = JsonPatchResponse(
+        entries=[],
+        added=result.get("added", []),
+        replaced=result.get("replaced", []),
+        removed=result.get("removed", []),
+        failures=failures,
+        has_failures=result.get("has_failures", False),
+        _links=links,
+    )
+
+    result_dict = response.model_dump(by_alias=True, exclude_none=True)
+    result_dict["entries"] = entries_responses
+    return result_dict
