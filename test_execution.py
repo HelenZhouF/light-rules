@@ -287,13 +287,177 @@ def test_rule_execution_details():
     print("\n[OK] rule execution details tests passed!\n")
 
 
+def test_single_equals_operator():
+    print("=== Testing single equals operator (=) ===")
+    
+    test_cases = [
+        ("= 'abc'", ComparisonOperator.EQ, "'abc'"),
+        ("= 123", ComparisonOperator.EQ, "123"),
+        ("= true", ComparisonOperator.EQ, "true"),
+    ]
+    
+    for expr, expected_op, expected_val in test_cases:
+        op, val = parse_comparison_expression(expr)
+        assert op == expected_op, f"Expected operator {expected_op}, got {op}"
+        assert val == expected_val, f"Expected value '{expected_val}', got '{val}'"
+        print(f"  [OK] {expr} -> op={op}, val='{val}'")
+    
+    print("[OK] single equals operator tests passed!\n")
+
+
+def test_condition_not_met():
+    print("=== Testing condition not met (action should NOT execute) ===")
+    
+    signature = [
+        {"id": str(uuid.uuid4()), "name": "v1", "dataType": "string", "direction": "input"},
+        {"id": str(uuid.uuid4()), "name": "v2", "dataType": "string", "direction": "output"},
+    ]
+    
+    class MockRule:
+        def __init__(self, name, order_index, conditional, conditions, actions):
+            self.id = uuid.uuid4()
+            self.name = name
+            self.order_index = order_index
+            self.conditional = conditional
+            self.conditions = conditions
+            self.actions = actions
+    
+    rules = [
+        MockRule(
+            name="If v1=abc then v2=xyz",
+            order_index=0,
+            conditional="all",
+            conditions=[
+                {
+                    "id": "cond-1",
+                    "term": {"name": "v1"},
+                    "expression": "= 'abc'",
+                    "type": "expression",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+            actions=[
+                {
+                    "id": "act-1",
+                    "term": {"name": "v2"},
+                    "expression": "'xyz'",
+                    "type": "assignment",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+        )
+    ]
+    
+    print("Test 1: v1 = 'abc' (condition met, v2 should be 'xyz')")
+    result = execute_ruleset_with_data(signature, rules, {"v1": "abc"})
+    print(f"  Success: {result.success}")
+    print(f"  Output: {result.output}")
+    print(f"  Conditions passed: {result.rules[0].conditions_passed}")
+    print(f"  Number of actions executed: {len(result.rules[0].actions)}")
+    assert result.success
+    assert result.output["v2"] == "xyz", f"Expected v2='xyz', got {result.output['v2']}"
+    assert result.rules[0].conditions_passed == True
+    assert len(result.rules[0].actions) == 1
+    print("  [OK]\n")
+    
+    print("Test 2: v1 = 'def' (condition NOT met, v2 should be None, NOT 'xyz')")
+    result = execute_ruleset_with_data(signature, rules, {"v1": "def"})
+    print(f"  Success: {result.success}")
+    print(f"  Output: {result.output}")
+    print(f"  Conditions passed: {result.rules[0].conditions_passed}")
+    print(f"  Number of actions executed: {len(result.rules[0].actions)}")
+    assert result.success
+    assert result.output["v2"] is None, f"Expected v2=None (not executed), got {result.output['v2']}"
+    assert result.rules[0].conditions_passed == False, f"Expected conditions_passed=False, got {result.rules[0].conditions_passed}"
+    assert len(result.rules[0].actions) == 0, f"Expected 0 actions executed, got {len(result.rules[0].actions)}"
+    print("  [OK]\n")
+    
+    print("Test 3: v1 = 'other' (condition NOT met, v2 should be None)")
+    result = execute_ruleset_with_data(signature, rules, {"v1": "other"})
+    print(f"  Success: {result.success}")
+    print(f"  Output: {result.output}")
+    print(f"  Conditions passed: {result.rules[0].conditions_passed}")
+    assert result.output["v2"] is None, f"Expected v2=None, got {result.output['v2']}"
+    assert result.rules[0].conditions_passed == False
+    print("  [OK]\n")
+    
+    print("[OK] condition not met tests passed!\n")
+
+
+def test_double_equals_operator():
+    print("=== Testing double equals operator (==) ===")
+    
+    signature = [
+        {"id": str(uuid.uuid4()), "name": "v1", "dataType": "string", "direction": "input"},
+        {"id": str(uuid.uuid4()), "name": "v2", "dataType": "string", "direction": "output"},
+    ]
+    
+    class MockRule:
+        def __init__(self, name, order_index, conditional, conditions, actions):
+            self.id = uuid.uuid4()
+            self.name = name
+            self.order_index = order_index
+            self.conditional = conditional
+            self.conditions = conditions
+            self.actions = actions
+    
+    rules = [
+        MockRule(
+            name="If v1==abc then v2=xyz",
+            order_index=0,
+            conditional="all",
+            conditions=[
+                {
+                    "id": "cond-1",
+                    "term": {"name": "v1"},
+                    "expression": "== 'abc'",
+                    "type": "expression",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+            actions=[
+                {
+                    "id": "act-1",
+                    "term": {"name": "v2"},
+                    "expression": "'xyz'",
+                    "type": "assignment",
+                    "status": None,
+                    "statusMessage": None,
+                }
+            ],
+        )
+    ]
+    
+    print("Test: v1 = 'abc' with == operator")
+    result = execute_ruleset_with_data(signature, rules, {"v1": "abc"})
+    print(f"  Success: {result.success}")
+    print(f"  Output: {result.output}")
+    assert result.output["v2"] == "xyz"
+    print("  [OK]\n")
+    
+    print("Test: v1 = 'def' with == operator")
+    result = execute_ruleset_with_data(signature, rules, {"v1": "def"})
+    print(f"  Success: {result.success}")
+    print(f"  Output: {result.output}")
+    assert result.output["v2"] is None
+    print("  [OK]\n")
+    
+    print("[OK] double equals operator tests passed!\n")
+
+
 def main():
     try:
         test_parse_comparison_expression()
+        test_single_equals_operator()
         test_parse_value()
         test_compare_values()
         test_execute_ruleset_with_data()
         test_rule_execution_details()
+        test_condition_not_met()
+        test_double_equals_operator()
         
         print("=== All tests passed! ===")
     except Exception as e:

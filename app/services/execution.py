@@ -40,6 +40,7 @@ COMPARISON_OPERATORS = [
     ("!=", ComparisonOperator.NE),
     (">", ComparisonOperator.GT),
     ("<", ComparisonOperator.LT),
+    ("=", ComparisonOperator.EQ),
 ]
 
 
@@ -526,6 +527,7 @@ def execute_single_rule(
                 result=result
             ))
         except Exception as e:
+            condition_booleans.append(False)
             condition_results.append(ConditionEvaluationResult(
                 condition_id=cond_id,
                 term_name=term_name,
