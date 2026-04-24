@@ -110,7 +110,7 @@ def ruleset_to_detail_response(ruleset) -> dict:
 
 def revision_to_response(ruleset_id: uuid.UUID, revision) -> dict:
     data = RevisionResponseData.model_validate(revision)
-    links = build_revision_links(ruleset_id, revision.id)
+    links = build_revision_links(ruleset_id, revision.id, revision.is_locked)
     response = RevisionResponse(**data.model_dump(), _links=links)
     return response.model_dump(by_alias=True, exclude_none=True)
 

@@ -102,14 +102,20 @@ def build_rule_pagination_links(
 def build_revision_links(
     ruleset_id: uuid.UUID,
     revision_id: uuid.UUID,
+    is_locked: bool,
 ) -> ResourceLinks:
     base_url = f"{API_BASE}/{ruleset_id}/revisions/{revision_id}"
     ruleset_url = f"{API_BASE}/{ruleset_id}"
+    revisions_url = f"{API_BASE}/{ruleset_id}/revisions"
     
     links = ResourceLinks(
         self=Link(href=base_url, method="GET"),
         up=Link(href=ruleset_url, method="GET"),
+        collection=Link(href=revisions_url, method="GET"),
     )
+    
+    if not is_locked:
+        links.createRevision = Link(href=revisions_url, method="POST")
     
     return links
 

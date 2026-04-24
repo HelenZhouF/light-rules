@@ -262,7 +262,7 @@ async def create_ruleset(
         "signature": ruleset.signature,
         "major": ruleset.major,
         "minor": ruleset.minor,
-        "is_locked": True,
+        "is_locked": False,
         "created_by": created_by,
         "modified_by": created_by,
     }
@@ -298,6 +298,19 @@ def _signature_terms_to_dicts(
             result.append(term_dict)
     
     return result if result else None
+
+
+async def get_unlocked_revision(
+    db: AsyncSession,
+    ruleset_id: uuid.UUID,
+) -> Optional[Revision]:
+    result = await db.execute(
+        select(Revision).where(
+            Revision.rule_set_id == ruleset_id,
+            Revision.is_locked == False,
+        )
+    )
+    return result.scalar_one_or_none()
 
 
 async def update_ruleset(
@@ -357,6 +370,13 @@ async def update_ruleset(
     for key, value in update_data.items():
         setattr(ruleset, key, value)
 
+    unlocked_revision = await get_unlocked_revision(db, ruleset_id)
+    if unlocked_revision:
+        revision_update_fields = ["name", "ruleSetType", "description", "signature", "modified_by"]
+        for key, value in update_data.items():
+            if key in revision_update_fields:
+                setattr(unlocked_revision, key, value)
+
     await db.commit()
     await db.refresh(ruleset)
     return ruleset
@@ -415,6 +435,18 @@ async def count_revisions(
     return result.scalar_one()
 
 
+async def lock_all_revisions(
+    db: AsyncSession,
+    ruleset_id: uuid.UUID,
+) -> None:
+    from sqlalchemy import update
+    await db.execute(
+        update(Revision)
+        .where(Revision.rule_set_id == ruleset_id)
+        .values(is_locked=True)
+    )
+
+
 async def create_revision(
     db: AsyncSession,
     ruleset_id: uuid.UUID,
@@ -425,31 +457,6 @@ async def create_revision(
     ruleset = await get_ruleset_by_id(db, ruleset_id)
     if not ruleset:
         return None
-
-    revision_data = {
-        "rule_set_id": ruleset.id,
-        "name": ruleset.name,
-        "ruleSetType": ruleset.ruleSetType,
-        "description": ruleset.description,
-        "signature": ruleset.signature,
-        "major": ruleset.major,
-        "minor": ruleset.minor,
-        "is_locked": True,
-        "created_by": created_by,
-        "modified_by": created_by,
-    }
-
-    revision = Revision(**revision_data)
-    db.add(revision)
-
-    if revision_type == RevisionType.major:
-        ruleset.major += 1
-        ruleset.minor = 0
-    else:
-        ruleset.minor += 1
-
-    ruleset.version += 1
-    ruleset.modified_by = created_by
 
     if ruleset_update:
         update_data = ruleset_update.model_dump(exclude_unset=True)
@@ -496,6 +503,33 @@ async def create_revision(
 
             for key, value in update_data.items():
                 setattr(ruleset, key, value)
+
+    if revision_type == RevisionType.major:
+        ruleset.major += 1
+        ruleset.minor = 0
+    else:
+        ruleset.minor += 1
+
+    ruleset.version += 1
+    ruleset.modified_by = created_by
+
+    await lock_all_revisions(db, ruleset_id)
+
+    revision_data = {
+        "rule_set_id": ruleset.id,
+        "name": ruleset.name,
+        "ruleSetType": ruleset.ruleSetType,
+        "description": ruleset.description,
+        "signature": ruleset.signature,
+        "major": ruleset.major,
+        "minor": ruleset.minor,
+        "is_locked": False,
+        "created_by": created_by,
+        "modified_by": created_by,
+    }
+
+    revision = Revision(**revision_data)
+    db.add(revision)
 
     await db.commit()
     await db.refresh(revision)
