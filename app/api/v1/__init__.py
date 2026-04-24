@@ -2,7 +2,9 @@ from fastapi import APIRouter
 
 from app.api.v1.ruleset import router as ruleset_router
 from app.api.v1.rule import router as rule_router
+from app.api.v1.domain import router as domain_router
 
 api_router = APIRouter()
 api_router.include_router(ruleset_router)
 api_router.include_router(rule_router)
+api_router.include_router(domain_router)
