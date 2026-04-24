@@ -14,7 +14,6 @@ from app.schemas.lookup import (
     LookupListResponse,
     LookupEntryCreate,
     LookupEntryResponse,
-    LookupEntryResponseData,
     LookupEntryListResponse,
     JsonPatchOperation,
 )
@@ -37,8 +36,6 @@ from app.crud.lookup import (
 from app.utils.hateoas import (
     build_domain_links,
     build_domain_pagination_links,
-    build_entry_links,
-    build_entry_pagination_links,
 )
 
 router = APIRouter(prefix="/domains", tags=["domains"])
@@ -57,8 +54,8 @@ def domain_to_detail_response(lookup) -> dict:
 
     entries_responses = []
     for entry in lookup.entries:
-        entry_response = entry_to_response(lookup.id, entry)
-        entries_responses.append(entry_response)
+        entry_data = LookupEntryResponse.model_validate(entry)
+        entries_responses.append(entry_data.model_dump())
 
     response = LookupDetailResponse(
         **data.model_dump(),
@@ -68,13 +65,6 @@ def domain_to_detail_response(lookup) -> dict:
     result = response.model_dump(by_alias=True, exclude_none=True)
     result["entries"] = entries_responses
     return result
-
-
-def entry_to_response(domain_id: uuid.UUID, entry) -> dict:
-    data = LookupEntryResponseData.model_validate(entry)
-    links = build_entry_links(domain_id, entry.key)
-    response = LookupEntryResponse(**data.model_dump(), _links=links)
-    return response.model_dump(by_alias=True, exclude_none=True)
 
 
 @router.get("/", response_model=dict, status_code=status.HTTP_200_OK)
@@ -193,8 +183,12 @@ async def read_entries(
     total = await count_entries(db, lookup_id=domain_id)
     entries = await get_entries_by_lookup_id(db, lookup_id=domain_id, skip=skip, limit=limit)
 
-    items = [entry_to_response(domain_id, e) for e in entries]
-    pagination_links = build_entry_pagination_links(domain_id, skip, limit, total)
+    items = []
+    for entry in entries:
+        entry_data = LookupEntryResponse.model_validate(entry)
+        items.append(entry_data.model_dump())
+
+    pagination_links = build_domain_pagination_links(skip, limit, total)
 
     response = LookupEntryListResponse(
         items=[],
@@ -227,7 +221,11 @@ async def create_entries_batch(
         entries_in=entries,
     )
 
-    items = [entry_to_response(domain_id, e) for e in created_entries]
+    items = []
+    for entry in created_entries:
+        entry_data = LookupEntryResponse.model_validate(entry)
+        items.append(entry_data.model_dump())
+
     return {
         "success": True,
         "items": items,
