@@ -129,3 +129,27 @@ class LookupEntriesBatchCreate(BaseModel):
 
 class LookupEntriesBatchUpdate(BaseModel):
     entries: List[LookupEntryCreate] = Field(..., min_length=1)
+
+
+class PatchOperationResult(BaseModel):
+    op: str
+    path: str
+    value: Optional[str] = None
+    success: bool
+    error: Optional[str] = None
+
+
+class JsonPatchResponse(BaseModel):
+    entries: List[LookupEntryResponse]
+    added: List[str]
+    replaced: List[str]
+    removed: List[str]
+    failures: List[PatchOperationResult]
+    has_failures: bool
+    links: ResourceLinks = Field(..., alias="_links")
+
+    model_config = {
+        "populate_by_name": True,
+        "by_alias": True,
+        "exclude_none": True,
+    }
