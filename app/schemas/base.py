@@ -12,7 +12,9 @@ class ResourceLinks(BaseModel):
     self: Link
     up: Optional[Link] = None
     rules: Optional[Link] = None
+    revisions: Optional[Link] = None
     addRules: Optional[Link] = None
+    createRevision: Optional[Link] = None
     update: Optional[Link] = None
     delete: Optional[Link] = None
 
