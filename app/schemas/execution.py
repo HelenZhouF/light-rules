@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class ConditionExecutionResult(BaseModel):
     id: str
     termName: str
-    expression: str
+    expression: Optional[str] = None
     result: bool
     error: Optional[str] = None
 
@@ -14,7 +14,7 @@ class ConditionExecutionResult(BaseModel):
 class ActionExecutionResult(BaseModel):
     id: str
     termName: str
-    expression: str
+    expression: Optional[str] = None
     value: Any
     error: Optional[str] = None
 

@@ -180,12 +180,14 @@ def compare_values(
 def evaluate_condition(
     condition: Dict[str, Any],
     variables: Dict[str, Any],
-    signature_terms: Dict[str, Dict[str, Any]]
+    signature_terms: Dict[str, Dict[str, Any]],
+    lookup_data: Optional[Dict[str, Dict[str, str]]] = None
 ) -> bool:
     term_ref = condition.get("term", {})
     term_name = term_ref.get("name")
     expression = condition.get("expression", "")
-    cond_type = condition.get("type", "expression")
+    cond_type = condition.get("type", "decisionTable")
+    lookup_id = condition.get("lookup_id")
     
     if not term_name:
         raise TermNotFoundError("Condition term has no name")
@@ -201,12 +203,28 @@ def evaluate_condition(
     current_value = variables[term_name]
     
     if cond_type == "expression":
+        if not expression:
+            raise ExpressionEvaluationError("Expression is required for condition type 'expression'")
         operator, value_str = parse_comparison_expression(expression)
         compare_value = parse_value(value_str, data_type)
         return compare_values(current_value, compare_value, operator, data_type)
     
     elif cond_type == "decisionTable":
         return evaluate_decision_table(expression, current_value, data_type)
+    
+    elif cond_type == "lookup":
+        if not lookup_id:
+            raise ExpressionEvaluationError("lookup_id is required for condition type 'lookup'")
+        if lookup_data and lookup_id in lookup_data:
+            lookup_table = lookup_data[lookup_id]
+            current_value_str = str(current_value) if current_value is not None else ""
+            return current_value_str in lookup_table
+        return False
+    
+    elif cond_type == "complex":
+        if not expression:
+            raise ExpressionEvaluationError("Expression is required for condition type 'complex'")
+        return bool(expression)
     
     raise ExpressionEvaluationError(f"Unsupported condition type: {cond_type}")
 
@@ -243,12 +261,14 @@ def parse_assignment_expression(expression: str, data_type: DataType) -> Any:
 def execute_action(
     action: Dict[str, Any],
     variables: Dict[str, Any],
-    signature_terms: Dict[str, Dict[str, Any]]
+    signature_terms: Dict[str, Dict[str, Any]],
+    lookup_data: Optional[Dict[str, Dict[str, str]]] = None
 ) -> Tuple[str, Any]:
     term_ref = action.get("term", {})
     term_name = term_ref.get("name")
     expression = action.get("expression", "")
     action_type = action.get("type", "assignment")
+    lookup_id = action.get("lookup_id")
     
     if not term_name:
         raise TermNotFoundError("Action term has no name")
@@ -260,9 +280,50 @@ def execute_action(
     data_type = DataType(term_info.get("dataType", "string"))
     
     if action_type == "assignment":
+        if not expression:
+            raise ExpressionEvaluationError("Expression is required for action type 'assignment'")
         new_value = parse_assignment_expression(expression, data_type)
         variables[term_name] = new_value
         return term_name, new_value
+    
+    elif action_type == "lookupValue":
+        if not lookup_id:
+            raise ExpressionEvaluationError("lookup_id is required for action type 'lookupValue'")
+        
+        input_term_name = None
+        for name, var_value in variables.items():
+            if name != term_name and name in signature_terms:
+                term_dir = signature_terms[name].get("direction", "input")
+                if term_dir == "input" or term_dir == "input/output":
+                    input_term_name = name
+                    break
+        
+        if input_term_name is None:
+            raise ExpressionEvaluationError("No input term found for lookupValue action")
+        
+        lookup_key = str(variables.get(input_term_name, ""))
+        
+        if lookup_data and lookup_id in lookup_data:
+            lookup_table = lookup_data[lookup_id]
+            if lookup_key in lookup_table:
+                new_value = parse_value(lookup_table[lookup_key], data_type)
+                variables[term_name] = new_value
+                return term_name, new_value
+        
+        variables[term_name] = None
+        return term_name, None
+    
+    elif action_type == "complex":
+        if not expression:
+            raise ExpressionEvaluationError("Expression is required for action type 'complex'")
+        new_value = parse_assignment_expression(expression, data_type)
+        variables[term_name] = new_value
+        return term_name, new_value
+    
+    elif action_type == "return":
+        return_value = parse_assignment_expression(expression, data_type) if expression else variables.get(term_name)
+        variables[term_name] = return_value
+        return term_name, return_value
     
     raise ExpressionEvaluationError(f"Unsupported action type: {action_type}")
 
@@ -455,7 +516,8 @@ class ExecutionResult:
 def execute_ruleset_with_data(
     signature: List[Any],
     rules: List[Any],
-    input_data: Dict[str, Any]
+    input_data: Dict[str, Any],
+    lookup_data: Optional[Dict[str, Dict[str, str]]] = None
 ) -> ExecutionResult:
     rule_results: List[RuleExecutionResult] = []
     
@@ -469,7 +531,7 @@ def execute_ruleset_with_data(
         sorted_rules = sorted(rules, key=lambda r: r.order_index if hasattr(r, 'order_index') else r.get('order_index', 0))
         
         for rule in sorted_rules:
-            rule_result = execute_single_rule(rule, variables, terms_by_name)
+            rule_result = execute_single_rule(rule, variables, terms_by_name, lookup_data)
             rule_results.append(rule_result)
         
         output = {}
@@ -501,7 +563,8 @@ def execute_ruleset_with_data(
 def execute_single_rule(
     rule: Any,
     variables: Dict[str, Any],
-    signature_terms: Dict[str, Dict[str, Any]]
+    signature_terms: Dict[str, Dict[str, Any]],
+    lookup_data: Optional[Dict[str, Dict[str, str]]] = None
 ) -> RuleExecutionResult:
     rule_id = str(rule.id) if hasattr(rule, 'id') else str(rule.get('id', ''))
     rule_name = rule.name if hasattr(rule, 'name') else rule.get('name', '')
@@ -520,7 +583,7 @@ def execute_single_rule(
         expression = cond.get('expression', '')
         
         try:
-            result = evaluate_condition(cond, variables, signature_terms)
+            result = evaluate_condition(cond, variables, signature_terms, lookup_data)
             condition_booleans.append(result)
             condition_results.append(ConditionEvaluationResult(
                 condition_id=cond_id,
@@ -550,7 +613,7 @@ def execute_single_rule(
             expression = action.get('expression', '')
             
             try:
-                assigned_name, assigned_value = execute_action(action, variables, signature_terms)
+                assigned_name, assigned_value = execute_action(action, variables, signature_terms, lookup_data)
                 action_results.append(ActionExecutionResult(
                     action_id=action_id,
                     term_name=assigned_name,
@@ -585,6 +648,7 @@ async def execute_ruleset(
 ) -> ExecutionResult:
     from app.crud.rule import get_ruleset_with_rules
     from app.crud.ruleset import get_revision_by_id, get_ruleset_by_id
+    from app.crud.lookup import get_lookup_with_entries
     
     if revision_id:
         revision = await get_revision_by_id(db, ruleset_id=ruleset_id, revision_id=revision_id)
@@ -618,4 +682,32 @@ async def execute_ruleset(
     
     rules = ruleset_with_rules.rules or []
     
-    return execute_ruleset_with_data(signature, rules, input_data)
+    lookup_ids = set()
+    for rule in rules:
+        conditions = rule.conditions if hasattr(rule, 'conditions') else rule.get('conditions', [])
+        for cond in conditions or []:
+            if isinstance(cond, dict):
+                lookup_id = cond.get('lookup_id')
+                if lookup_id:
+                    lookup_ids.add(str(lookup_id))
+        
+        actions = rule.actions if hasattr(rule, 'actions') else rule.get('actions', [])
+        for action in actions or []:
+            if isinstance(action, dict):
+                lookup_id = action.get('lookup_id')
+                if lookup_id:
+                    lookup_ids.add(str(lookup_id))
+    
+    lookup_data: Dict[str, Dict[str, str]] = {}
+    for lookup_id_str in lookup_ids:
+        try:
+            lookup_id_uuid = uuid.UUID(lookup_id_str)
+            lookup = await get_lookup_with_entries(db, lookup_id_uuid)
+            if lookup and lookup.entries:
+                lookup_data[lookup_id_str] = {
+                    entry.key: entry.value for entry in lookup.entries
+                }
+        except (ValueError, TypeError):
+            continue
+    
+    return execute_ruleset_with_data(signature, rules, input_data, lookup_data)
