@@ -52,6 +52,9 @@ def process_conditions_for_storage(
         cond_dict["status"] = None
         cond_dict["statusMessage"] = None
         
+        if "lookup_id" in cond_dict and cond_dict["lookup_id"] is not None:
+            cond_dict["lookup_id"] = str(cond_dict["lookup_id"])
+        
         if "term" in cond_dict:
             processed_term = process_term_ref_for_storage(
                 cond.term, terms_by_id, terms_by_name
@@ -83,6 +86,9 @@ def process_actions_for_storage(
         action_dict["id"] = str(uuid.uuid4())
         action_dict["status"] = None
         action_dict["statusMessage"] = None
+        
+        if "lookup_id" in action_dict and action_dict["lookup_id"] is not None:
+            action_dict["lookup_id"] = str(action_dict["lookup_id"])
         
         if "term" in action_dict:
             processed_term = process_term_ref_for_storage(

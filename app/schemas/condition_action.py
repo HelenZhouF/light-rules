@@ -56,7 +56,7 @@ class TermRefResponse(BaseModel):
 
 class ConditionBase(BaseModel):
     term: TermRef
-    expression: str
+    expression: Optional[str] = None
     type: ConditionType = ConditionType.DECISION_TABLE
     lookup_id: Optional[uuid.UUID] = None
 
@@ -74,7 +74,7 @@ class ConditionUpdate(BaseModel):
 
 class ConditionResponseBase(BaseModel):
     term: TermRefResponse
-    expression: str
+    expression: Optional[str] = None
     type: ConditionType = ConditionType.DECISION_TABLE
     lookup_id: Optional[uuid.UUID] = None
 
@@ -87,7 +87,7 @@ class ConditionResponse(ConditionResponseBase):
 
 class ActionBase(BaseModel):
     term: TermRef
-    expression: str
+    expression: Optional[str] = None
     type: ActionType = ActionType.ASSIGNMENT
     lookup_id: Optional[uuid.UUID] = None
 
@@ -105,7 +105,7 @@ class ActionUpdate(BaseModel):
 
 class ActionResponseBase(BaseModel):
     term: TermRefResponse
-    expression: str
+    expression: Optional[str] = None
     type: ActionType = ActionType.ASSIGNMENT
     lookup_id: Optional[uuid.UUID] = None
 

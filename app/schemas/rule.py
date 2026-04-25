@@ -183,6 +183,15 @@ def build_term_ref_response(
     )
 
 
+def _convert_lookup_id_to_uuid(item: Dict[str, Any]) -> Dict[str, Any]:
+    if "lookup_id" in item and item["lookup_id"] is not None and isinstance(item["lookup_id"], str):
+        try:
+            item["lookup_id"] = uuid.UUID(item["lookup_id"])
+        except (ValueError, TypeError):
+            item["lookup_id"] = None
+    return item
+
+
 def convert_conditions_with_signature(
     conditions: Optional[List[Any]],
     signature: Optional[List[Any]],
@@ -206,6 +215,8 @@ def convert_conditions_with_signature(
             item_copy["term"] = build_term_ref_response(
                 term_ref_data, terms_by_id, terms_by_name
             )
+        
+        item_copy = _convert_lookup_id_to_uuid(item_copy)
         
         result.append(ConditionResponse(**item_copy))
     
@@ -235,6 +246,8 @@ def convert_actions_with_signature(
             item_copy["term"] = build_term_ref_response(
                 term_ref_data, terms_by_id, terms_by_name
             )
+        
+        item_copy = _convert_lookup_id_to_uuid(item_copy)
         
         result.append(ActionResponse(**item_copy))
     
