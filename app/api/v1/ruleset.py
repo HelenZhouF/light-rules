@@ -47,7 +47,12 @@ from app.crud.ruleset import (
     count_revisions,
     create_revision,
 )
-from app.crud.rule import get_ruleset_with_rules
+from app.crud.rule import (
+    get_ruleset_with_rules,
+    get_rules_order,
+    update_rules_order,
+)
+from app.schemas.order import OrderRequest, OrderResponse
 from app.services.execution import execute_ruleset as execute_ruleset_service
 from app.utils.hateoas import (
     build_ruleset_links,
@@ -432,3 +437,71 @@ async def execute_revision_endpoint(
         )
     
     return execution_result_to_response(result)
+
+
+@router.get("/{ruleset_id}/order", response_model=dict, status_code=status.HTTP_200_OK)
+async def get_ruleset_order(
+    ruleset_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    rule_ids = await get_rules_order(db, rule_set_id=ruleset_id)
+    
+    response = OrderResponse(
+        type="id",
+        template=f"/ruleSets/{ruleset_id}/rules/{{id}}",
+        resources=rule_ids,
+    )
+    return response.model_dump(by_alias=True, exclude_none=True)
+
+
+@router.put("/{ruleset_id}/order", response_model=dict, status_code=status.HTTP_200_OK)
+async def update_ruleset_order(
+    ruleset_id: uuid.UUID,
+    order_request: OrderRequest,
+    db: AsyncSession = Depends(get_async_session),
+):
+    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
+    if ruleset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="RuleSet not found",
+        )
+    
+    if ruleset.is_locked:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="RuleSet is locked and cannot be modified",
+        )
+    
+    if order_request.type != "id":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only 'id' type is supported",
+        )
+    
+    success = await update_rules_order(
+        db,
+        rule_set_id=ruleset_id,
+        rule_ids=order_request.resources,
+    )
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to update order. Please check that all rule IDs are valid.",
+        )
+    
+    response = OrderResponse(
+        type="id",
+        template=f"/ruleSets/{ruleset_id}/rules/{{id}}",
+        resources=order_request.resources,
+        message="Order updated successfully",
+    )
+    return response.model_dump(by_alias=True, exclude_none=True)
