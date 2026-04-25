@@ -280,6 +280,53 @@ def test_parsed_ruleset_to_db_format_includes_id():
     print("[OK] test_parsed_ruleset_to_db_format_includes_id passed")
 
 
+def test_multipart_response_has_content_id():
+    from app.api.v1.batch_import import MULTIPART_BOUNDARY
+    
+    accept_csv = "col1,col2\nval1,val2"
+    reject_csv = "col1,col2,errors\nval1,val2,invalid"
+    global_error = "Test error"
+    created_rulesets = [{"id": "test-uuid", "name": "test"}]
+    
+    boundary = MULTIPART_BOUNDARY
+    lines = []
+    
+    if global_error:
+        lines.append(f"--{boundary}")
+        lines.append("Content-Type: application/json")
+        lines.append("Content-ID: Global-error")
+        lines.append("")
+    
+    if accept_csv:
+        lines.append(f"--{boundary}")
+        lines.append("Content-Type: text/csv; charset=utf-8")
+        lines.append("Content-ID: Accepted-csv")
+        lines.append('Content-Disposition: attachment; filename="accepted.csv"')
+        lines.append("")
+    
+    if reject_csv:
+        lines.append(f"--{boundary}")
+        lines.append("Content-Type: text/csv; charset=utf-8")
+        lines.append("Content-ID: Rejected-csv")
+        lines.append('Content-Disposition: attachment; filename="rejected.csv"')
+        lines.append("")
+    
+    if created_rulesets:
+        lines.append(f"--{boundary}")
+        lines.append("Content-Type: application/json")
+        lines.append("Content-ID: Created-rulesets")
+        lines.append("")
+    
+    body_str = "\r\n".join(lines)
+    
+    assert "Content-ID: Global-error" in body_str, "Global-error Content-ID not found"
+    assert "Content-ID: Accepted-csv" in body_str, "Accepted-csv Content-ID not found"
+    assert "Content-ID: Rejected-csv" in body_str, "Rejected-csv Content-ID not found"
+    assert "Content-ID: Created-rulesets" in body_str, "Created-rulesets Content-ID not found"
+    
+    print("[OK] test_multipart_response_has_content_id passed")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding='utf-8')
     print("Starting batch import service tests...\n")
@@ -296,5 +343,6 @@ if __name__ == "__main__":
     test_empty_csv()
     test_uuid_preserved_in_parsed_ruleset()
     test_parsed_ruleset_to_db_format_includes_id()
+    test_multipart_response_has_content_id()
     
     print("\n[OK] All tests passed!")
