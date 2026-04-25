@@ -290,18 +290,27 @@ def execute_action(
         if not lookup_id:
             raise ExpressionEvaluationError("lookup_id is required for action type 'lookupValue'")
         
-        input_term_name = None
-        for name, var_value in variables.items():
-            if name != term_name and name in signature_terms:
-                term_dir = signature_terms[name].get("direction", "input")
-                if term_dir == "input" or term_dir == "input/output":
-                    input_term_name = name
-                    break
+        lookup_key = ""
         
-        if input_term_name is None:
-            raise ExpressionEvaluationError("No input term found for lookupValue action")
-        
-        lookup_key = str(variables.get(input_term_name, ""))
+        if expression:
+            expr_stripped = expression.strip()
+            if expr_stripped in signature_terms:
+                lookup_key = str(variables.get(expr_stripped, ""))
+            else:
+                lookup_key = _strip_quotes(expr_stripped)
+        else:
+            input_term_name = None
+            for name, var_value in variables.items():
+                if name != term_name and name in signature_terms:
+                    term_dir = signature_terms[name].get("direction", "input")
+                    if term_dir == "input" or term_dir == "input/output":
+                        input_term_name = name
+                        break
+            
+            if input_term_name is None:
+                raise ExpressionEvaluationError("No input term found for lookupValue action")
+            
+            lookup_key = str(variables.get(input_term_name, ""))
         
         if lookup_data and lookup_id in lookup_data:
             lookup_table = lookup_data[lookup_id]
