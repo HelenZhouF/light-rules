@@ -22,10 +22,15 @@ class Direction(str, Enum):
 class ConditionType(str, Enum):
     DECISION_TABLE = "decisionTable"
     EXPRESSION = "expression"
+    LOOKUP = "lookup"
+    COMPLEX = "complex"
 
 
 class ActionType(str, Enum):
     ASSIGNMENT = "assignment"
+    LOOKUP_VALUE = "lookupValue"
+    COMPLEX = "complex"
+    RETURN = "return"
 
 
 class TermRef(BaseModel):
@@ -52,7 +57,8 @@ class TermRefResponse(BaseModel):
 class ConditionBase(BaseModel):
     term: TermRef
     expression: str
-    type: ConditionType = ConditionType.EXPRESSION
+    type: ConditionType = ConditionType.DECISION_TABLE
+    lookup_id: Optional[uuid.UUID] = None
 
 
 class ConditionCreate(ConditionBase):
@@ -63,12 +69,14 @@ class ConditionUpdate(BaseModel):
     term: Optional[TermRef] = None
     expression: Optional[str] = None
     type: Optional[ConditionType] = None
+    lookup_id: Optional[uuid.UUID] = None
 
 
 class ConditionResponseBase(BaseModel):
     term: TermRefResponse
     expression: str
-    type: ConditionType = ConditionType.EXPRESSION
+    type: ConditionType = ConditionType.DECISION_TABLE
+    lookup_id: Optional[uuid.UUID] = None
 
 
 class ConditionResponse(ConditionResponseBase):
@@ -81,6 +89,7 @@ class ActionBase(BaseModel):
     term: TermRef
     expression: str
     type: ActionType = ActionType.ASSIGNMENT
+    lookup_id: Optional[uuid.UUID] = None
 
 
 class ActionCreate(ActionBase):
@@ -91,12 +100,14 @@ class ActionUpdate(BaseModel):
     term: Optional[TermRef] = None
     expression: Optional[str] = None
     type: Optional[ActionType] = None
+    lookup_id: Optional[uuid.UUID] = None
 
 
 class ActionResponseBase(BaseModel):
     term: TermRefResponse
     expression: str
     type: ActionType = ActionType.ASSIGNMENT
+    lookup_id: Optional[uuid.UUID] = None
 
 
 class ActionResponse(ActionResponseBase):
