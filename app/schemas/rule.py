@@ -258,7 +258,7 @@ class RuleBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=1000)
     conditional: str
-    order_index: int = Field(..., ge=0)
+    order_index: Optional[int] = Field(None, ge=0)
 
 
 class RuleCreate(RuleBase):

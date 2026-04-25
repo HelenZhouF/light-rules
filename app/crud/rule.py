@@ -161,6 +161,22 @@ async def count_rules_by_ruleset(db: AsyncSession, rule_set_id: uuid.UUID) -> in
     return result.scalar_one()
 
 
+async def get_next_order_index(db: AsyncSession, rule_set_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.max(Rule.order_index)).where(Rule.rule_set_id == rule_set_id)
+    )
+    max_order = result.scalar_one_or_none()
+    return max_order + 1 if max_order is not None else 0
+
+
+async def get_max_order_index(db: AsyncSession, rule_set_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(func.max(Rule.order_index)).where(Rule.rule_set_id == rule_set_id)
+    )
+    max_order = result.scalar_one_or_none()
+    return max_order if max_order is not None else -1
+
+
 async def get_ruleset_with_rules(
     db: AsyncSession, ruleset_id: uuid.UUID
 ) -> Optional[RuleSet]:
@@ -183,6 +199,9 @@ async def create_rule(
     rule_data["rule_set_id"] = rule_set_id
     rule_data["created_by"] = created_by
     rule_data["modified_by"] = created_by
+    
+    if rule_data.get("order_index") is None:
+        rule_data["order_index"] = await get_next_order_index(db, rule_set_id)
     
     rule_data["conditions"] = process_conditions_for_storage(rule_in.conditions, signature)
     rule_data["actions"] = process_actions_for_storage(rule_in.actions, signature)
@@ -243,5 +262,38 @@ async def delete_rule(
         return False
 
     await db.delete(rule)
+    await db.commit()
+    return True
+
+
+async def get_rules_order(
+    db: AsyncSession,
+    rule_set_id: uuid.UUID,
+) -> List[str]:
+    rules = await get_rules_by_ruleset_id(db, rule_set_id=rule_set_id)
+    return [str(rule.id) for rule in rules]
+
+
+async def update_rules_order(
+    db: AsyncSession,
+    rule_set_id: uuid.UUID,
+    rule_ids: List[str],
+) -> bool:
+    existing_rules = await get_rules_by_ruleset_id(db, rule_set_id=rule_set_id)
+    existing_rule_ids = set(str(rule.id) for rule in existing_rules)
+    
+    for rule_id in rule_ids:
+        if rule_id not in existing_rule_ids:
+            return False
+    
+    for index, rule_id in enumerate(rule_ids):
+        try:
+            rule_uuid = uuid.UUID(rule_id)
+            rule = await get_rule_by_id(db, rule_uuid)
+            if rule:
+                rule.order_index = index
+        except ValueError:
+            return False
+    
     await db.commit()
     return True

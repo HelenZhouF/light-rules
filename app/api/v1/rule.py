@@ -150,14 +150,15 @@ async def create_new_rule(
             detail="Rule with this name already exists in this RuleSet",
         )
     
-    existing_rule_by_order = await get_rule_by_order_index_and_ruleset(
-        db, order_index=rule_in.order_index, rule_set_id=ruleset_id
-    )
-    if existing_rule_by_order:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Rule with this order_index already exists in this RuleSet",
+    if rule_in.order_index is not None:
+        existing_rule_by_order = await get_rule_by_order_index_and_ruleset(
+            db, order_index=rule_in.order_index, rule_set_id=ruleset_id
         )
+        if existing_rule_by_order:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Rule with this order_index already exists in this RuleSet",
+            )
     
     rule = await create_rule(
         db=db, 
