@@ -545,12 +545,16 @@ async def create_ruleset_with_rules_transaction(
     from app.models.revision import Revision
     from app.models.rule import Rule
     from app.crud.rule import process_conditions_for_storage, process_actions_for_storage
-    from app.schemas.rule import RuleCreate
     
     try:
         existing_ruleset = await get_ruleset_by_name(db, name=ruleset_data["name"])
         if existing_ruleset:
             return None, f"RuleSet with name '{ruleset_data['name']}' already exists"
+        
+        if "id" in ruleset_data:
+            existing_by_id = await get_ruleset_by_id(db, ruleset_data["id"])
+            if existing_by_id:
+                return None, f"RuleSet with id '{ruleset_data['id']}' already exists"
         
         ruleset_dict = {
             "name": ruleset_data["name"],
@@ -560,6 +564,9 @@ async def create_ruleset_with_rules_transaction(
             "created_by": created_by,
             "modified_by": created_by,
         }
+        
+        if "id" in ruleset_data:
+            ruleset_dict["id"] = ruleset_data["id"]
         
         if ruleset_dict.get("signature"):
             ruleset_dict["signature"] = _signature_terms_to_dicts(ruleset_dict["signature"])
@@ -602,6 +609,14 @@ async def create_ruleset_with_rules_transaction(
                 await db.rollback()
                 return None, f"Rule with order_index '{rule_data['order_index']}' already exists in RuleSet"
             
+            if "id" in rule_data:
+                existing_rule_by_id = await db.execute(
+                    select(Rule).where(Rule.id == rule_data["id"])
+                )
+                if existing_rule_by_id.scalar_one_or_none():
+                    await db.rollback()
+                    return None, f"Rule with id '{rule_data['id']}' already exists"
+            
             conditions = rule_data.get("conditions", [])
             actions = rule_data.get("actions", [])
             
@@ -615,8 +630,12 @@ async def create_ruleset_with_rules_transaction(
                 "modified_by": created_by,
             }
             
+            if "id" in rule_data:
+                rule_dict["id"] = rule_data["id"]
+            
             rule_create_conditions = None
             if conditions:
+                from app.schemas.condition_action import ConditionCreate
                 rule_create_conditions = [
                     ConditionCreate(**c) if isinstance(c, dict) else c 
                     for c in conditions
@@ -624,6 +643,7 @@ async def create_ruleset_with_rules_transaction(
             
             rule_create_actions = None
             if actions:
+                from app.schemas.condition_action import ActionCreate
                 rule_create_actions = [
                     ActionCreate(**a) if isinstance(a, dict) else a 
                     for a in actions

@@ -230,6 +230,56 @@ def test_empty_csv():
     print(f"[OK] test_empty_csv passed, global_error: {result.global_error}")
 
 
+def test_uuid_preserved_in_parsed_ruleset():
+    result = process_csv_import(SAMPLE_CSV)
+    assert result.global_error is None
+    
+    expected_ruleset_id = uuid.UUID("fc96e3b2-0003-4ebb-bf3b-5409a2183da6")
+    expected_rule1_id = uuid.UUID("8eccd5bb-a1f5-4084-8669-e80dd594b881")
+    expected_rule2_id = uuid.UUID("15780b99-88ae-4076-8bd5-0fcd7b9ea8af")
+    
+    assert expected_ruleset_id in result.parsed_rulesets
+    
+    parsed_ruleset = result.parsed_rulesets[expected_ruleset_id]
+    assert parsed_ruleset.ruleset_id == expected_ruleset_id
+    
+    assert expected_rule1_id in parsed_ruleset.rules
+    assert expected_rule2_id in parsed_ruleset.rules
+    
+    rule1 = parsed_ruleset.rules[expected_rule1_id]
+    assert rule1.rule_id == expected_rule1_id
+    
+    rule2 = parsed_ruleset.rules[expected_rule2_id]
+    assert rule2.rule_id == expected_rule2_id
+    
+    print("[OK] test_uuid_preserved_in_parsed_ruleset passed")
+
+
+def test_parsed_ruleset_to_db_format_includes_id():
+    from app.api.v1.batch_import import parsed_ruleset_to_db_format
+    
+    result = process_csv_import(SAMPLE_CSV)
+    assert result.global_error is None
+    
+    expected_ruleset_id = uuid.UUID("fc96e3b2-0003-4ebb-bf3b-5409a2183da6")
+    expected_rule1_id = uuid.UUID("8eccd5bb-a1f5-4084-8669-e80dd594b881")
+    expected_rule2_id = uuid.UUID("15780b99-88ae-4076-8bd5-0fcd7b9ea8af")
+    
+    parsed_ruleset = result.parsed_rulesets[expected_ruleset_id]
+    ruleset_data, rules_data, signature = parsed_ruleset_to_db_format(parsed_ruleset)
+    
+    assert "id" in ruleset_data
+    assert ruleset_data["id"] == expected_ruleset_id
+    
+    assert len(rules_data) == 2
+    
+    rule_ids = {rule["id"] for rule in rules_data}
+    assert expected_rule1_id in rule_ids
+    assert expected_rule2_id in rule_ids
+    
+    print("[OK] test_parsed_ruleset_to_db_format_includes_id passed")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding='utf-8')
     print("Starting batch import service tests...\n")
@@ -244,5 +294,7 @@ if __name__ == "__main__":
     test_generate_csv_outputs()
     test_invalid_csv()
     test_empty_csv()
+    test_uuid_preserved_in_parsed_ruleset()
+    test_parsed_ruleset_to_db_format_includes_id()
     
     print("\n[OK] All tests passed!")
