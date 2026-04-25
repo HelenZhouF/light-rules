@@ -37,6 +37,7 @@ def build_multipart_response(
     if global_error:
         lines.append(f"--{boundary}")
         lines.append("Content-Type: application/json")
+        lines.append("Content-ID: Global-error")
         lines.append("")
         lines.append('{"error": ' + f'"{escape_for_json(global_error)}"' + "}")
         lines.append("")
@@ -44,6 +45,7 @@ def build_multipart_response(
     if accept_csv:
         lines.append(f"--{boundary}")
         lines.append("Content-Type: text/csv; charset=utf-8")
+        lines.append("Content-ID: Accepted-csv")
         lines.append('Content-Disposition: attachment; filename="accepted.csv"')
         lines.append("")
         lines.append(accept_csv)
@@ -52,6 +54,7 @@ def build_multipart_response(
     if reject_csv:
         lines.append(f"--{boundary}")
         lines.append("Content-Type: text/csv; charset=utf-8")
+        lines.append("Content-ID: Rejected-csv")
         lines.append('Content-Disposition: attachment; filename="rejected.csv"')
         lines.append("")
         lines.append(reject_csv)
@@ -60,6 +63,7 @@ def build_multipart_response(
     if created_rulesets:
         lines.append(f"--{boundary}")
         lines.append("Content-Type: application/json")
+        lines.append("Content-ID: Created-rulesets")
         lines.append("")
         import json
         lines.append(json.dumps({"created_rulesets": created_rulesets}, default=str))
