@@ -20,6 +20,7 @@ class ResourceLinks(BaseModel):
     entries: Optional[Link] = None
     addEntries: Optional[Link] = None
     patchEntries: Optional[Link] = None
+    updateOrder: Optional[Link] = None
 
     model_config = {
         "exclude_none": True,
