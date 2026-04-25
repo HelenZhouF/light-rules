@@ -286,14 +286,22 @@ async def update_rules_order(
         if rule_id not in existing_rule_ids:
             return False
     
+    rule_id_to_rule = {str(rule.id): rule for rule in existing_rules}
+    
+    max_order = await get_max_order_index(db, rule_set_id)
+    temp_offset = max_order + 1000
+    
+    for i, rule_id in enumerate(rule_ids):
+        rule = rule_id_to_rule.get(rule_id)
+        if rule:
+            rule.order_index = temp_offset + i
+    
+    await db.flush()
+    
     for index, rule_id in enumerate(rule_ids):
-        try:
-            rule_uuid = uuid.UUID(rule_id)
-            rule = await get_rule_by_id(db, rule_uuid)
-            if rule:
-                rule.order_index = index
-        except ValueError:
-            return False
+        rule = rule_id_to_rule.get(rule_id)
+        if rule:
+            rule.order_index = index
     
     await db.commit()
     return True
