@@ -533,3 +533,126 @@ async def create_revision(
     await db.commit()
     await db.refresh(revision)
     return revision
+
+
+async def create_ruleset_with_rules_transaction(
+    db: AsyncSession,
+    ruleset_data: Dict[str, Any],
+    rules_data: List[Dict[str, Any]],
+    signature: Optional[List[Any]] = None,
+    created_by: Optional[str] = None,
+) -> Tuple[Optional[RuleSet], Optional[str]]:
+    from app.models.revision import Revision
+    from app.models.rule import Rule
+    from app.crud.rule import process_conditions_for_storage, process_actions_for_storage
+    from app.schemas.rule import RuleCreate
+    
+    try:
+        existing_ruleset = await get_ruleset_by_name(db, name=ruleset_data["name"])
+        if existing_ruleset:
+            return None, f"RuleSet with name '{ruleset_data['name']}' already exists"
+        
+        ruleset_dict = {
+            "name": ruleset_data["name"],
+            "ruleSetType": ruleset_data.get("ruleSetType", "decision"),
+            "description": ruleset_data.get("description"),
+            "signature": signature,
+            "created_by": created_by,
+            "modified_by": created_by,
+        }
+        
+        if ruleset_dict.get("signature"):
+            ruleset_dict["signature"] = _signature_terms_to_dicts(ruleset_dict["signature"])
+        
+        ruleset = RuleSet(**ruleset_dict)
+        db.add(ruleset)
+        await db.flush()
+        
+        revision_data = {
+            "rule_set_id": ruleset.id,
+            "name": ruleset.name,
+            "ruleSetType": ruleset.ruleSetType,
+            "description": ruleset.description,
+            "signature": ruleset.signature,
+            "major": ruleset.major,
+            "minor": ruleset.minor,
+            "is_locked": False,
+            "created_by": created_by,
+            "modified_by": created_by,
+        }
+        revision = Revision(**revision_data)
+        db.add(revision)
+        await db.flush()
+        
+        for rule_data in rules_data:
+            existing_rule = await db.execute(
+                select(Rule).where(Rule.name == rule_data["name"], Rule.rule_set_id == ruleset.id)
+            )
+            if existing_rule.scalar_one_or_none():
+                await db.rollback()
+                return None, f"Rule with name '{rule_data['name']}' already exists in RuleSet"
+            
+            existing_order = await db.execute(
+                select(Rule).where(
+                    Rule.order_index == rule_data["order_index"], 
+                    Rule.rule_set_id == ruleset.id
+                )
+            )
+            if existing_order.scalar_one_or_none():
+                await db.rollback()
+                return None, f"Rule with order_index '{rule_data['order_index']}' already exists in RuleSet"
+            
+            conditions = rule_data.get("conditions", [])
+            actions = rule_data.get("actions", [])
+            
+            rule_dict = {
+                "name": rule_data["name"],
+                "description": rule_data.get("description"),
+                "conditional": rule_data["conditional"],
+                "order_index": rule_data["order_index"],
+                "rule_set_id": ruleset.id,
+                "created_by": created_by,
+                "modified_by": created_by,
+            }
+            
+            rule_create_conditions = None
+            if conditions:
+                rule_create_conditions = [
+                    ConditionCreate(**c) if isinstance(c, dict) else c 
+                    for c in conditions
+                ]
+            
+            rule_create_actions = None
+            if actions:
+                rule_create_actions = [
+                    ActionCreate(**a) if isinstance(a, dict) else a 
+                    for a in actions
+                ]
+            
+            rule_dict["conditions"] = process_conditions_for_storage(
+                rule_create_conditions, signature
+            )
+            rule_dict["actions"] = process_actions_for_storage(
+                rule_create_actions, signature
+            )
+            
+            rule = Rule(**rule_dict)
+            db.add(rule)
+            await db.flush()
+        
+        await db.commit()
+        await db.refresh(ruleset)
+        return ruleset, None
+        
+    except Exception as e:
+        try:
+            await db.rollback()
+        except:
+            pass
+        return None, str(e)
+
+
+try:
+    from app.schemas.condition_action import ConditionCreate, ActionCreate
+except ImportError:
+    pass
