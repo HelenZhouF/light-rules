@@ -90,6 +90,7 @@ def parsed_ruleset_to_db_format(
     )
     
     ruleset_data = {
+        "id": parsed_ruleset.ruleset_id,
         "name": parsed_ruleset.ruleset_nm,
         "ruleSetType": "decision",
         "description": parsed_ruleset.ruleset_desc or None,
@@ -107,6 +108,7 @@ def parsed_ruleset_to_db_format(
         ]
         
         rule_data = {
+            "id": rule_id,
             "name": parsed_rule.rule_nm,
             "description": parsed_rule.rule_desc or None,
             "conditional": parsed_rule.conditional,
