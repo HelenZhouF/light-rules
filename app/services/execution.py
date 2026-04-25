@@ -215,8 +215,9 @@ def evaluate_condition(
     elif cond_type == "lookup":
         if not lookup_id:
             raise ExpressionEvaluationError("lookup_id is required for condition type 'lookup'")
-        if lookup_data and lookup_id in lookup_data:
-            lookup_table = lookup_data[lookup_id]
+        lookup_id_str = str(lookup_id)
+        if lookup_data and lookup_id_str in lookup_data:
+            lookup_table = lookup_data[lookup_id_str]
             current_value_str = str(current_value) if current_value is not None else ""
             return current_value_str in lookup_table
         return False
@@ -312,8 +313,9 @@ def execute_action(
             
             lookup_key = str(variables.get(input_term_name, ""))
         
-        if lookup_data and lookup_id in lookup_data:
-            lookup_table = lookup_data[lookup_id]
+        lookup_id_str = str(lookup_id)
+        if lookup_data and lookup_id_str in lookup_data:
+            lookup_table = lookup_data[lookup_id_str]
             if lookup_key in lookup_table:
                 new_value = parse_value(lookup_table[lookup_key], data_type)
                 variables[term_name] = new_value
