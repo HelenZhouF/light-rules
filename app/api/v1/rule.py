@@ -213,20 +213,16 @@ async def update_existing_rule(
                 detail="Rule with this name already exists in this RuleSet",
             )
     
-    if rule_in.order_index is not None and rule_in.order_index != rule.order_index:
-        existing_rule_by_order = await get_rule_by_order_index_and_ruleset(
-            db, order_index=rule_in.order_index, rule_set_id=ruleset_id
-        )
-        if existing_rule_by_order:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Rule with this order_index already exists in this RuleSet",
-            )
+    update_data = rule_in.model_dump(exclude_unset=True)
+    update_data.pop("order_index", None)
+    
+    from app.schemas.rule import RuleUpdate as RuleUpdateSchema
+    filtered_rule_in = RuleUpdateSchema(**update_data)
     
     updated_rule = await update_rule(
         db=db,
         rule_id=rule_id,
-        rule_in=rule_in,
+        rule_in=filtered_rule_in,
         signature=rule.ruleset.signature,
     )
     return rule_to_response(updated_rule, rule.ruleset.signature, rule.ruleset.is_locked)

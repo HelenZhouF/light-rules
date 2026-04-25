@@ -24,6 +24,7 @@ def build_ruleset_links(
         links.update = Link(href=base_url, method="PUT")
         links.delete = Link(href=base_url, method="DELETE")
         links.createRevision = Link(href=f"{base_url}/revisions", method="POST")
+        links.updateOrder = Link(href=f"{base_url}/order", method="PUT")
     
     return links
 
