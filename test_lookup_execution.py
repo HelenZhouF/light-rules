@@ -187,9 +187,9 @@ def test_lookup_value_action_with_direct_value():
     print("[OK] lookupValue action with direct value tests passed!\n")
 
 
-def test_lookup_value_action_backward_compatibility():
-    """Test action type = lookupValue backward compatibility (no expression)"""
-    print("=== Testing action type = lookupValue backward compatibility (no expression) ===")
+def test_lookup_value_action_no_expression():
+    """Test action type = lookupValue with no expression (should return None)"""
+    print("=== Testing action type = lookupValue with no expression ===")
     
     signature = [
         {"id": str(uuid.uuid4()), "name": "statusCode", "dataType": "string", "direction": "input"},
@@ -213,12 +213,12 @@ def test_lookup_value_action_backward_compatibility():
         "lookup_id": lookup_id,
     }
     
-    print("Test 1: No expression, should use first input term (statusCode)")
+    print("Test 1: No expression, should return None (not use first input term)")
     variables = {"statusCode": "A", "statusName": None}
     term_name, value = execute_action(action, variables, terms_by_name, lookup_data)
     print(f"  Term: {term_name}, Value: {value}")
     assert term_name == "statusName"
-    assert value == "Active", f"Expected 'Active', got {value}"
+    assert value is None, f"Expected None, got {value}"
     print("  [OK]\n")
     
     print("Test 2: No expression, statusCode = 'B'")
@@ -226,10 +226,10 @@ def test_lookup_value_action_backward_compatibility():
     term_name, value = execute_action(action, variables, terms_by_name, lookup_data)
     print(f"  Term: {term_name}, Value: {value}")
     assert term_name == "statusName"
-    assert value == "Blocked", f"Expected 'Blocked', got {value}"
+    assert value is None, f"Expected None, got {value}"
     print("  [OK]\n")
     
-    print("[OK] lookupValue action backward compatibility tests passed!\n")
+    print("[OK] lookupValue action no expression tests passed!\n")
 
 
 def test_full_ruleset_with_lookup():
@@ -319,7 +319,7 @@ def main():
         test_lookup_condition()
         test_lookup_value_action_with_term_name()
         test_lookup_value_action_with_direct_value()
-        test_lookup_value_action_backward_compatibility()
+        test_lookup_value_action_no_expression()
         test_full_ruleset_with_lookup()
         
         print("=== All lookup tests passed! ===")

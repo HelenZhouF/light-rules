@@ -300,18 +300,8 @@ def execute_action(
             else:
                 lookup_key = _strip_quotes(expr_stripped)
         else:
-            input_term_name = None
-            for name, var_value in variables.items():
-                if name != term_name and name in signature_terms:
-                    term_dir = signature_terms[name].get("direction", "input")
-                    if term_dir == "input" or term_dir == "input/output":
-                        input_term_name = name
-                        break
-            
-            if input_term_name is None:
-                raise ExpressionEvaluationError("No input term found for lookupValue action")
-            
-            lookup_key = str(variables.get(input_term_name, ""))
+            variables[term_name] = None
+            return term_name, None
         
         lookup_id_str = str(lookup_id)
         if lookup_data and lookup_id_str in lookup_data:
