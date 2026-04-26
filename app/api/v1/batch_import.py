@@ -88,9 +88,20 @@ def escape_for_json(s: str) -> str:
 def parsed_ruleset_to_db_format(
     parsed_ruleset: ParsedRuleSet,
 ) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Any]]:
+    condition_term_names: Set[str] = set()
+    action_term_names: Set[str] = set()
+    
+    for rule_id, parsed_rule in parsed_ruleset.rules.items():
+        for condition in parsed_rule.conditions:
+            condition_term_names.add(condition.term_name)
+        for action in parsed_rule.actions:
+            action_term_names.add(action.term_name)
+    
     signature = generate_signature_from_terms(
         parsed_ruleset.all_term_names,
         parsed_ruleset.term_datatypes,
+        condition_term_names,
+        action_term_names,
         default_length=100,
     )
     
