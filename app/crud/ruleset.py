@@ -250,6 +250,9 @@ async def create_ruleset(
     ruleset_data["created_by"] = created_by
     ruleset_data["modified_by"] = created_by
 
+    if ruleset_in.signature is not None:
+        ruleset_data["signature"] = _signature_terms_to_dicts(ruleset_in.signature)
+
     ruleset = RuleSet(**ruleset_data)
     db.add(ruleset)
     await db.flush()

@@ -347,6 +347,9 @@ def build_signature_maps(
                         input_terms[name] = term
                     elif direction == "output":
                         output_terms[name] = term
+                    elif direction == "inout":
+                        input_terms[name] = term
+                        output_terms[name] = term
                     else:
                         input_terms[name] = term
                         output_terms[name] = term

@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Set
 
 from sqlalchemy import select, update, delete, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,96 @@ from app.schemas.rule import (
     resolve_term_for_storage,
 )
 from app.schemas.condition_action import ConditionCreate, ActionCreate, TermRef
+
+
+def extract_term_names_from_conditions(
+    conditions: Optional[List[ConditionCreate]],
+) -> Set[str]:
+    term_names: Set[str] = set()
+    if conditions:
+        for cond in conditions:
+            if cond.term:
+                if cond.term.name:
+                    term_names.add(cond.term.name)
+    return term_names
+
+
+def extract_term_names_from_actions(
+    actions: Optional[List[ActionCreate]],
+) -> Set[str]:
+    term_names: Set[str] = set()
+    if actions:
+        for action in actions:
+            if action.term:
+                if action.term.name:
+                    term_names.add(action.term.name)
+    return term_names
+
+
+def extract_term_ids_from_conditions(
+    conditions: Optional[List[Dict[str, Any]]],
+) -> Set[str]:
+    term_ids: Set[str] = set()
+    if conditions:
+        for cond in conditions:
+            if isinstance(cond, dict) and "term" in cond:
+                term = cond.get("term", {})
+                if isinstance(term, dict):
+                    term_id = term.get("termId")
+                    if term_id:
+                        term_ids.add(str(term_id))
+    return term_ids
+
+
+def extract_term_ids_from_actions(
+    actions: Optional[List[Dict[str, Any]]],
+) -> Set[str]:
+    term_ids: Set[str] = set()
+    if actions:
+        for action in actions:
+            if isinstance(action, dict) and "term" in action:
+                term = action.get("term", {})
+                if isinstance(term, dict):
+                    term_id = term.get("termId")
+                    if term_id:
+                        term_ids.add(str(term_id))
+    return term_ids
+
+
+def update_signature_direction_for_inout_terms(
+    signature: Optional[List[Dict[str, Any]]],
+    condition_term_names: Set[str],
+    action_term_names: Set[str],
+    terms_by_name: Dict[str, Dict[str, Any]],
+) -> Tuple[Optional[List[Dict[str, Any]]], bool]:
+    if signature is None:
+        return None, False
+    
+    inout_term_names = condition_term_names & action_term_names
+    if not inout_term_names:
+        return signature, False
+    
+    updated = False
+    result = []
+    for term in signature:
+        if isinstance(term, dict):
+            term_name = term.get("name")
+            term_id = str(term.get("id", ""))
+            current_direction = term.get("direction")
+            
+            if term_name in inout_term_names:
+                if current_direction != "inout":
+                    term_copy = dict(term)
+                    term_copy["direction"] = "inout"
+                    result.append(term_copy)
+                    updated = True
+                    continue
+            
+            result.append(term)
+        else:
+            result.append(term)
+    
+    return result if updated else signature, updated
 
 
 def process_term_ref_for_storage(
@@ -208,6 +298,37 @@ async def create_rule(
 
     rule = Rule(**rule_data)
     db.add(rule)
+    
+    condition_term_names = extract_term_names_from_conditions(rule_in.conditions)
+    action_term_names = extract_term_names_from_actions(rule_in.actions)
+    
+    if condition_term_names and action_term_names and signature:
+        terms_by_id, terms_by_name = build_signature_term_maps(signature)
+        
+        signature_dicts: Optional[List[Dict[str, Any]]] = None
+        if signature:
+            from app.crud.ruleset import _signature_terms_to_dicts
+            signature_dicts = _signature_terms_to_dicts(signature)
+        
+        updated_signature, signature_updated = update_signature_direction_for_inout_terms(
+            signature_dicts,
+            condition_term_names,
+            action_term_names,
+            terms_by_name
+        )
+        
+        if signature_updated and updated_signature:
+            from app.crud.ruleset import get_ruleset_by_id, get_unlocked_revision
+            ruleset = await get_ruleset_by_id(db, rule_set_id)
+            if ruleset:
+                ruleset.signature = updated_signature
+                ruleset.modified_by = created_by
+            
+            unlocked_revision = await get_unlocked_revision(db, rule_set_id)
+            if unlocked_revision:
+                unlocked_revision.signature = updated_signature
+                unlocked_revision.modified_by = created_by
+
     await db.commit()
     await db.refresh(rule)
     return rule
