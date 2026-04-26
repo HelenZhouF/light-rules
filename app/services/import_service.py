@@ -336,9 +336,22 @@ def group_rows_by_ruleset(validated_rows: List[ValidatedRow]) -> Dict[uuid.UUID,
 def generate_signature_from_terms(
     term_names: Set[str],
     term_datatypes: Dict[str, str],
+    condition_term_names: Optional[Set[str]] = None,
+    action_term_names: Optional[Set[str]] = None,
     default_length: int = 100,
 ) -> List[SignatureTerm]:
+    """
+    Generate signature terms with appropriate direction based on usage.
+    
+    - term appears only in conditions: direction = "input"
+    - term appears only in actions: direction = "output"
+    - term appears in both: direction = "inout"
+    - usage info not provided: direction = None
+    """
     signature = []
+    
+    condition_terms = condition_term_names or set()
+    action_terms = action_term_names or set()
     
     for term_name in term_names:
         datatype_str = term_datatypes.get(term_name, "string").lower()
@@ -352,6 +365,17 @@ def generate_signature_from_terms(
             "name": term_name,
             "dataType": data_type,
         }
+        
+        if condition_term_names is not None or action_term_names is not None:
+            in_condition = term_name in condition_terms
+            in_action = term_name in action_terms
+            
+            if in_condition and in_action:
+                term_kwargs["direction"] = Direction.INOUT
+            elif in_condition:
+                term_kwargs["direction"] = Direction.INPUT
+            elif in_action:
+                term_kwargs["direction"] = Direction.OUTPUT
         
         if data_type == DataType.STRING:
             term_kwargs["length"] = default_length
