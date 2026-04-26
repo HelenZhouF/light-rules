@@ -17,6 +17,7 @@ class DataType(str, Enum):
 class Direction(str, Enum):
     INPUT = "input"
     OUTPUT = "output"
+    INOUT = "inout"
 
 
 class ConditionType(str, Enum):
