@@ -108,12 +108,14 @@ def generate_condition_code(
     
     elif cond_type == ConditionType.LOOKUP.value:
         lookup_id = condition.get("lookup_id")
-        lines.append(f"{indent}lookup_id = {repr(str(lookup_id)) if lookup_id else None}")
+        lookup_id_str = str(lookup_id) if lookup_id else None
+        
         lines.append(f"{indent}cond_result = False")
-        lines.append(f"{indent}if lookup_id and lookup_id in lookup_data:")
-        lines.append(f"{indent}    lookup_table = lookup_data[lookup_id]")
-        lines.append(f"{indent}    current_value_str = str({var_name}) if {var_name} is not None else ''")
-        lines.append(f"{indent}    cond_result = current_value_str in lookup_table")
+        if lookup_id_str:
+            lines.append(f"{indent}current_value_str = str({var_name}) if {var_name} is not None else ''")
+            lines.append(f"{indent}if {repr(lookup_id_str)} in lookup_data:")
+            lines.append(f"{indent}    lookup_table = lookup_data[{repr(lookup_id_str)}]")
+            lines.append(f"{indent}    cond_result = current_value_str in lookup_table")
     
     elif cond_type == ConditionType.COMPLEX.value:
         if not expression:
@@ -154,25 +156,30 @@ def generate_action_code(
     
     elif action_type == ActionType.LOOKUP_VALUE.value:
         lookup_id = action.get("lookup_id")
-        lines.append(f"{indent}lookup_id = {repr(str(lookup_id)) if lookup_id else None}")
+        lookup_id_str = str(lookup_id) if lookup_id else None
+        
         lines.append(f"{indent}{var_name} = None")
         lines.append(f"{indent}action_value = None")
-        lines.append(f"{indent}if lookup_id and lookup_id in lookup_data:")
-        lines.append(f"{indent}    lookup_table = lookup_data[lookup_id]")
-        if expression:
-            expr_stripped = expression.strip()
-            lines.append(f"{indent}    expr_stripped = {repr(expr_stripped)}")
-            lines.append(f"{indent}    if expr_stripped in variables:")
-            lines.append(f"{indent}        lookup_key = str(variables[expr_stripped])")
-            lines.append(f"{indent}    else:")
-            lines.append(f"{indent}        lookup_key = {repr(_strip_quotes(expr_stripped))}")
-        else:
-            lines.append(f"{indent}    lookup_key = ''")
-        lines.append(f"{indent}    if lookup_key in lookup_table:")
-        lines.append(f"{indent}        lookup_result = lookup_table[lookup_key]")
-        lines.append(f"{indent}        # Note: lookup value parsing depends on data type")
-        lines.append(f"{indent}        {var_name} = lookup_result")
-        lines.append(f"{indent}        action_value = lookup_result")
+        
+        if lookup_id_str:
+            lines.append(f"{indent}if {repr(lookup_id_str)} in lookup_data:")
+            lines.append(f"{indent}    lookup_table = lookup_data[{repr(lookup_id_str)}]")
+            
+            if expression:
+                expr_stripped = expression.strip()
+                lines.append(f"{indent}    expr_stripped = {repr(expr_stripped)}")
+                lines.append(f"{indent}    if expr_stripped in variables:")
+                lines.append(f"{indent}        lookup_key = str(variables[expr_stripped])")
+                lines.append(f"{indent}    else:")
+                lines.append(f"{indent}        lookup_key = {repr(_strip_quotes(expr_stripped))}")
+            else:
+                lines.append(f"{indent}    lookup_key = ''")
+            
+            lines.append(f"{indent}    if lookup_key in lookup_table:")
+            lines.append(f"{indent}        lookup_result = lookup_table[lookup_key]")
+            lines.append(f"{indent}        # Note: lookup value parsing depends on data type")
+            lines.append(f"{indent}        {var_name} = lookup_result")
+            lines.append(f"{indent}        action_value = lookup_result")
     
     elif action_type == ActionType.COMPLEX.value:
         if not expression:
@@ -192,10 +199,27 @@ def generate_action_code(
     return lines
 
 
+def generate_lookup_data_code(lookup_data: Dict[str, Dict[str, str]]) -> List[str]:
+    lines: List[str] = []
+    
+    lines.append("    lookup_data: Dict[str, Dict[str, str]] = {")
+    
+    for lookup_id, entries in lookup_data.items():
+        lines.append(f"        {repr(lookup_id)}: {{")
+        for key, value in entries.items():
+            lines.append(f"            {repr(key)}: {repr(value)},")
+        lines.append("        },")
+    
+    lines.append("    }")
+    
+    return lines
+
+
 def generate_ruleset_function(
     ruleset_name: str,
     signature: List[Dict[str, Any]],
     rules: List[Any],
+    lookup_data: Dict[str, Dict[str, str]],
 ) -> str:
     lines: List[str] = []
     
@@ -209,7 +233,6 @@ def generate_ruleset_function(
     
     lines.append(f"def {function_name}(")
     lines.append("    input_data: Dict[str, Any],")
-    lines.append("    lookup_data: Optional[Dict[str, Dict[str, str]]] = None")
     lines.append(") -> Dict[str, Any]:")
     lines.append("    \"\"\"")
     lines.append(f"    Executes the '{ruleset_name}' ruleset.")
@@ -217,8 +240,11 @@ def generate_ruleset_function(
     lines.append("    variables: Dict[str, Any] = {}")
     lines.append("    output: Dict[str, Any] = {}")
     lines.append("")
-    lines.append("    if lookup_data is None:")
-    lines.append("        lookup_data = {}")
+    
+    if lookup_data:
+        lines.extend(generate_lookup_data_code(lookup_data))
+    else:
+        lines.append("    lookup_data: Dict[str, Dict[str, str]] = {}")
     lines.append("")
     
     terms_by_name: Dict[str, Dict[str, Any]] = {}

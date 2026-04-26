@@ -53,6 +53,7 @@ from app.crud.rule import (
     get_rules_order,
     update_rules_order,
 )
+from app.crud.lookup import get_lookup_with_entries
 
 from app.schemas.order import OrderRequest, OrderResponse
 from app.services.execution import execute_ruleset as execute_ruleset_service
@@ -525,10 +526,39 @@ async def get_ruleset_code(
     signature = ruleset.signature or []
     rules = ruleset.rules or []
     
+    lookup_ids: set = set()
+    for rule in rules:
+        conditions = rule.conditions if hasattr(rule, 'conditions') else rule.get('conditions', [])
+        for cond in conditions or []:
+            if isinstance(cond, dict):
+                lookup_id = cond.get('lookup_id')
+                if lookup_id:
+                    lookup_ids.add(str(lookup_id))
+        
+        actions = rule.actions if hasattr(rule, 'actions') else rule.get('actions', [])
+        for action in actions or []:
+            if isinstance(action, dict):
+                lookup_id = action.get('lookup_id')
+                if lookup_id:
+                    lookup_ids.add(str(lookup_id))
+    
+    lookup_data: dict = {}
+    for lookup_id_str in lookup_ids:
+        try:
+            lookup_id_uuid = uuid.UUID(lookup_id_str)
+            lookup = await get_lookup_with_entries(db, lookup_id_uuid)
+            if lookup and lookup.entries:
+                lookup_data[lookup_id_str] = {
+                    entry.key: entry.value for entry in lookup.entries
+                }
+        except (ValueError, TypeError):
+            continue
+    
     code = generate_ruleset_function(
         ruleset_name=ruleset.name,
         signature=signature,
         rules=rules,
+        lookup_data=lookup_data,
     )
     
     return code
