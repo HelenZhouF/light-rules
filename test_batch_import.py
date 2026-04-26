@@ -327,6 +327,157 @@ def test_multipart_response_has_content_id():
     print("[OK] test_multipart_response_has_content_id passed")
 
 
+def test_separate_accept_reject_by_creation_result():
+    from app.services.import_service import (
+        separate_accept_reject_by_creation_result,
+        ValidatedRow,
+        CSVRow,
+    )
+    
+    ruleset_id_1 = uuid.UUID("fc96e3b2-0003-4ebb-bf3b-5409a2183da6")
+    ruleset_id_2 = uuid.UUID("12345678-0000-0000-0000-000000000001")
+    ruleset_id_3 = uuid.UUID("12345678-0000-0000-0000-000000000002")
+    
+    row_1_1 = ValidatedRow(
+        row=CSVRow(
+            line_number=2,
+            ruleset_id=str(ruleset_id_1),
+            ruleset_nm="ruleset_1",
+            ruleset_desc="",
+            rule_id="8eccd5bb-a1f5-4084-8669-e80dd594b881",
+            rule_nm="rule_1",
+            rule_desc="",
+            rule_seq_no="1",
+            conditional="if",
+            datatype="decimal",
+            lhs_term="ninq",
+            expression="1",
+            expression_type="CONDITION",
+            expression_order="1",
+            raw={},
+        )
+    )
+    
+    row_1_2 = ValidatedRow(
+        row=CSVRow(
+            line_number=3,
+            ruleset_id=str(ruleset_id_1),
+            ruleset_nm="ruleset_1",
+            ruleset_desc="",
+            rule_id="8eccd5bb-a1f5-4084-8669-e80dd594b881",
+            rule_nm="rule_1",
+            rule_desc="",
+            rule_seq_no="1",
+            conditional="if",
+            datatype="string",
+            lhs_term="out",
+            expression="'ninq is 1'",
+            expression_type="ACTION",
+            expression_order="1",
+            raw={},
+        )
+    )
+    
+    row_2_1 = ValidatedRow(
+        row=CSVRow(
+            line_number=4,
+            ruleset_id=str(ruleset_id_2),
+            ruleset_nm="ruleset_2",
+            ruleset_desc="",
+            rule_id="15780b99-88ae-4076-8bd5-0fcd7b9ea8af",
+            rule_nm="rule_2",
+            rule_desc="",
+            rule_seq_no="2",
+            conditional="if",
+            datatype="decimal",
+            lhs_term="ninq",
+            expression="0",
+            expression_type="CONDITION",
+            expression_order="1",
+            raw={},
+        )
+    )
+    
+    row_3_1 = ValidatedRow(
+        row=CSVRow(
+            line_number=5,
+            ruleset_id=str(ruleset_id_3),
+            ruleset_nm="ruleset_3",
+            ruleset_desc="",
+            rule_id="99999999-88ae-4076-8bd5-0fcd7b9ea8af",
+            rule_nm="rule_3",
+            rule_desc="",
+            rule_seq_no="3",
+            conditional="if",
+            datatype="decimal",
+            lhs_term="value",
+            expression="100",
+            expression_type="CONDITION",
+            expression_order="1",
+            raw={},
+        )
+    )
+    
+    invalid_row = ValidatedRow(
+        row=CSVRow(
+            line_number=6,
+            ruleset_id="invalid-uuid",
+            ruleset_nm="",
+            ruleset_desc="",
+            rule_id="invalid-rule",
+            rule_nm="",
+            rule_desc="",
+            rule_seq_no="",
+            conditional="",
+            datatype="",
+            lhs_term="",
+            expression="",
+            expression_type="",
+            expression_order="",
+            raw={},
+        ),
+        errors=["ruleset_id is invalid", "ruleset_nm is required"]
+    )
+    
+    accepted_rows = [row_1_1, row_1_2, row_2_1, row_3_1]
+    rejected_rows = [invalid_row]
+    
+    created_ruleset_ids = {ruleset_id_1}
+    failed_rulesets = {
+        ruleset_id_2: "RuleSet with id already exists",
+        ruleset_id_3: "Database connection error",
+    }
+    
+    final_accepted, final_rejected = separate_accept_reject_by_creation_result(
+        accepted_rows=accepted_rows,
+        rejected_rows=rejected_rows,
+        created_ruleset_ids=created_ruleset_ids,
+        failed_rulesets=failed_rulesets,
+    )
+    
+    assert len(final_accepted) == 2, f"Expected 2 accepted rows, got {len(final_accepted)}"
+    accepted_ruleset_ids = {uuid.UUID(r.row.ruleset_id) for r in final_accepted}
+    assert ruleset_id_1 in accepted_ruleset_ids
+    assert ruleset_id_2 not in accepted_ruleset_ids
+    assert ruleset_id_3 not in accepted_ruleset_ids
+    
+    assert len(final_rejected) == 3, f"Expected 3 rejected rows, got {len(final_rejected)}"
+    
+    original_rejected = [r for r in final_rejected if "ruleset_id is invalid" in str(r.errors)]
+    assert len(original_rejected) == 1
+    
+    failed_rows = [r for r in final_rejected if "Import failed" in str(r.errors)]
+    assert len(failed_rows) == 2
+    
+    for failed_row in failed_rows:
+        row_ruleset_id = uuid.UUID(failed_row.row.ruleset_id)
+        assert row_ruleset_id in failed_rulesets
+        expected_error = failed_rulesets[row_ruleset_id]
+        assert any(expected_error in err for err in failed_row.errors) or any("Import failed" in err for err in failed_row.errors)
+    
+    print("[OK] test_separate_accept_reject_by_creation_result passed")
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding='utf-8')
     print("Starting batch import service tests...\n")
@@ -344,5 +495,6 @@ if __name__ == "__main__":
     test_uuid_preserved_in_parsed_ruleset()
     test_parsed_ruleset_to_db_format_includes_id()
     test_multipart_response_has_content_id()
+    test_separate_accept_reject_by_creation_result()
     
     print("\n[OK] All tests passed!")

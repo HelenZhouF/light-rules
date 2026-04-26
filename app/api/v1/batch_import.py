@@ -1,5 +1,5 @@
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, Request, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -11,6 +11,7 @@ from app.services.import_service import (
     generate_accept_csv,
     generate_reject_csv,
     generate_signature_from_terms,
+    separate_accept_reject_by_creation_result,
     parsed_condition_to_condition_create,
     parsed_action_to_action_create,
     ParsedRuleSet,
@@ -183,23 +184,19 @@ async def batch_import_rules(
     
     import_result = process_csv_import(csv_content)
     
-    accept_csv = ""
-    reject_csv = ""
-    created_rulesets = []
-    
-    if import_result.accepted_rows:
-        accept_csv = generate_accept_csv(import_result.accepted_rows)
-    
-    if import_result.rejected_rows:
-        reject_csv = generate_reject_csv(import_result.rejected_rows)
-    
     if import_result.global_error:
+        accept_csv = generate_accept_csv(import_result.accepted_rows) if import_result.accepted_rows else ""
+        reject_csv = generate_reject_csv(import_result.rejected_rows) if import_result.rejected_rows else ""
         return build_multipart_response(
             global_error=import_result.global_error,
             accept_csv=accept_csv,
             reject_csv=reject_csv,
             created_rulesets=[],
         )
+    
+    created_ruleset_ids: Set[uuid.UUID] = set()
+    failed_rulesets: Dict[uuid.UUID, str] = {}
+    created_rulesets = []
     
     for ruleset_id, parsed_ruleset in import_result.parsed_rulesets.items():
         ruleset_data, rules_data, signature = parsed_ruleset_to_db_format(parsed_ruleset)
@@ -212,15 +209,34 @@ async def batch_import_rules(
         )
         
         if ruleset:
+            created_ruleset_ids.add(ruleset_id)
             created_rulesets.append(ruleset_to_response_dict(ruleset))
         else:
-            if import_result.global_error is None:
-                import_result.global_error = f"Failed to create ruleset '{parsed_ruleset.ruleset_nm}': {error}"
+            failed_rulesets[ruleset_id] = error
+    
+    final_accepted, final_rejected = separate_accept_reject_by_creation_result(
+        accepted_rows=import_result.accepted_rows,
+        rejected_rows=import_result.rejected_rows,
+        created_ruleset_ids=created_ruleset_ids,
+        failed_rulesets=failed_rulesets,
+    )
+    
+    global_error = None
+    if failed_rulesets:
+        error_messages = []
+        for ruleset_id, error in failed_rulesets.items():
+            parsed_ruleset = import_result.parsed_rulesets.get(ruleset_id)
+            if parsed_ruleset:
+                error_messages.append(f"Failed to create ruleset '{parsed_ruleset.ruleset_nm}': {error}")
             else:
-                import_result.global_error += f"; Failed to create ruleset '{parsed_ruleset.ruleset_nm}': {error}"
+                error_messages.append(f"Failed to create ruleset with id '{ruleset_id}': {error}")
+        global_error = "; ".join(error_messages)
+    
+    accept_csv = generate_accept_csv(final_accepted) if final_accepted else ""
+    reject_csv = generate_reject_csv(final_rejected) if final_rejected else ""
     
     return build_multipart_response(
-        global_error=import_result.global_error,
+        global_error=global_error,
         accept_csv=accept_csv,
         reject_csv=reject_csv,
         created_rulesets=created_rulesets,

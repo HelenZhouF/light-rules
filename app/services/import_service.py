@@ -465,3 +465,50 @@ def generate_reject_csv(rejected_rows: List[ValidatedRow]) -> str:
         ])
     
     return output.getvalue()
+
+
+def filter_rows_by_ruleset(
+    rows: List[ValidatedRow],
+    ruleset_ids: Set[uuid.UUID],
+) -> List[ValidatedRow]:
+    return [
+        row for row in rows 
+        if uuid.UUID(row.row.ruleset_id) in ruleset_ids
+    ]
+
+
+def add_error_to_rows(
+    rows: List[ValidatedRow],
+    error_message: str,
+) -> List[ValidatedRow]:
+    result = []
+    for validated in rows:
+        new_errors = list(validated.errors)
+        new_errors.append(error_message)
+        result.append(ValidatedRow(row=validated.row, errors=new_errors))
+    return result
+
+
+def separate_accept_reject_by_creation_result(
+    accepted_rows: List[ValidatedRow],
+    rejected_rows: List[ValidatedRow],
+    created_ruleset_ids: Set[uuid.UUID],
+    failed_rulesets: Dict[uuid.UUID, str],
+) -> Tuple[List[ValidatedRow], List[ValidatedRow]]:
+    final_accepted = []
+    final_rejected = list(rejected_rows)
+    
+    for validated in accepted_rows:
+        ruleset_id = uuid.UUID(validated.row.ruleset_id)
+        
+        if ruleset_id in created_ruleset_ids:
+            final_accepted.append(validated)
+        elif ruleset_id in failed_rulesets:
+            error_msg = failed_rulesets[ruleset_id]
+            new_errors = list(validated.errors)
+            new_errors.append(f"Import failed: {error_msg}")
+            final_rejected.append(ValidatedRow(row=validated.row, errors=new_errors))
+        else:
+            final_accepted.append(validated)
+    
+    return final_accepted, final_rejected
