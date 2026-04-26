@@ -277,12 +277,28 @@ async def create_ruleset(
     return ruleset
 
 
+def _convert_enum_to_value(obj: Any) -> Any:
+    """
+    递归将枚举类型转换为其值，UUID 转换为字符串。
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_enum_to_value(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_enum_to_value(item) for item in obj]
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+    elif hasattr(obj, "value"):
+        return obj.value
+    return obj
+
+
 def _signature_terms_to_dicts(
     signature: Optional[List[Any]]
 ) -> Optional[List[Dict[str, Any]]]:
     """
     将 signature 中的 SignatureTerm 转换为 dict，确保 id 被包含。
     解决 model_dump(exclude_unset=True) 排除自动生成 id 的问题。
+    同时确保枚举类型和 UUID 被正确序列化为字符串。
     """
     if signature is None:
         return None
@@ -291,13 +307,11 @@ def _signature_terms_to_dicts(
     for term in signature:
         if isinstance(term, BaseModel):
             term_dict = term.model_dump()
-            if "id" in term_dict and isinstance(term_dict["id"], uuid.UUID):
-                term_dict["id"] = str(term_dict["id"])
+            term_dict = _convert_enum_to_value(term_dict)
             result.append(term_dict)
         elif isinstance(term, dict):
             term_dict = dict(term)
-            if "id" in term_dict and isinstance(term_dict["id"], uuid.UUID):
-                term_dict["id"] = str(term_dict["id"])
+            term_dict = _convert_enum_to_value(term_dict)
             result.append(term_dict)
     
     return result if result else None
