@@ -408,10 +408,15 @@ def generate_ruleset_function(
         lines.append("")
         lines.append(f"    if rule_{order_index}_passed:")
         
+        action_count = 0
         for i, action in enumerate(actions_data or []):
             lines.append(f"        # Action {i+1}")
             action_lines = generate_action_code(action, terms_by_name, "        ")
             lines.extend(action_lines)
+            action_count += 1
+        
+        if action_count == 0:
+            lines.append("        pass")
         
         lines.append("")
     
