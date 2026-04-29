@@ -2,7 +2,6 @@ import uuid
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_session
@@ -53,11 +52,8 @@ from app.crud.rule import (
     get_rules_order,
     update_rules_order,
 )
-from app.crud.lookup import get_lookup_with_entries
-
 from app.schemas.order import OrderRequest, OrderResponse
 from app.services.execution import execute_ruleset as execute_ruleset_service
-from app.services.code_generator import generate_ruleset_function, generate_ruleset_metadata
 from app.utils.hateoas import (
     build_ruleset_links,
     build_pagination_links,
@@ -509,81 +505,3 @@ async def update_ruleset_order(
         message="Order updated successfully",
     )
     return response.model_dump(by_alias=True, exclude_none=True)
-
-
-@router.get("/{ruleset_id}/code", response_class=PlainTextResponse, status_code=status.HTTP_200_OK)
-async def get_ruleset_code(
-    ruleset_id: uuid.UUID,
-    db: AsyncSession = Depends(get_async_session),
-):
-    ruleset = await get_ruleset_with_rules(db, ruleset_id=ruleset_id)
-    if ruleset is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="RuleSet not found",
-        )
-    
-    signature = ruleset.signature or []
-    rules = ruleset.rules or []
-    
-    lookup_ids: set = set()
-    for rule in rules:
-        conditions = rule.conditions if hasattr(rule, 'conditions') else rule.get('conditions', [])
-        for cond in conditions or []:
-            if isinstance(cond, dict):
-                lookup_id = cond.get('lookup_id')
-                if lookup_id:
-                    lookup_ids.add(str(lookup_id))
-        
-        actions = rule.actions if hasattr(rule, 'actions') else rule.get('actions', [])
-        for action in actions or []:
-            if isinstance(action, dict):
-                lookup_id = action.get('lookup_id')
-                if lookup_id:
-                    lookup_ids.add(str(lookup_id))
-    
-    lookup_data: dict = {}
-    for lookup_id_str in lookup_ids:
-        try:
-            lookup_id_uuid = uuid.UUID(lookup_id_str)
-            lookup = await get_lookup_with_entries(db, lookup_id_uuid)
-            if lookup and lookup.entries:
-                lookup_data[lookup_id_str] = {
-                    entry.key: entry.value for entry in lookup.entries
-                }
-        except (ValueError, TypeError):
-            continue
-    
-    code = generate_ruleset_function(
-        ruleset_name=ruleset.name,
-        signature=signature,
-        rules=rules,
-        lookup_data=lookup_data,
-    )
-    
-    return code
-
-
-@router.get("/{ruleset_id}/metadata", response_model=dict, status_code=status.HTTP_200_OK)
-async def get_ruleset_metadata(
-    ruleset_id: uuid.UUID,
-    db: AsyncSession = Depends(get_async_session),
-):
-    ruleset = await get_ruleset_by_id(db, ruleset_id=ruleset_id)
-    if ruleset is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="RuleSet not found",
-        )
-    
-    signature = ruleset.signature or []
-    
-    metadata = generate_ruleset_metadata(
-        ruleset_name=ruleset.name,
-        ruleset_description=ruleset.description,
-        major=ruleset.major,
-        minor=ruleset.minor,
-        signature=signature,
-    )
-    
-    return metadata
