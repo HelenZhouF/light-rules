@@ -1,6 +1,7 @@
+import re
 import uuid
 from datetime import datetime
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Tuple
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic_core import PydanticCustomError
@@ -12,6 +13,54 @@ class FunctionParameter(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     type: str = Field(..., min_length=1, max_length=50)
     inOut: Optional[bool] = False
+
+
+def parse_ds2_signature(code: str) -> Tuple[Optional[List[FunctionParameter]], Optional[str]]:
+    try:
+        first_semicolon = code.find(';')
+        if first_semicolon != -1:
+            declaration = code[:first_semicolon]
+        else:
+            declaration = code
+        
+        method_match = re.search(
+            r'method\s+(\w+)\s*\((.*?)\)\s*(?:returns\s+(\w+))?',
+            declaration,
+            re.IGNORECASE
+        )
+        if not method_match:
+            return None, None
+        
+        params_str = method_match.group(2).strip()
+        return_type = method_match.group(3)
+        
+        if not params_str:
+            return [], return_type
+        
+        params = []
+        for param_str in params_str.split(','):
+            param_str = param_str.strip()
+            if not param_str:
+                continue
+            
+            is_inout = False
+            param_lower = param_str.lower()
+            if param_lower.startswith('inout '):
+                is_inout = True
+                param_str = param_str[6:].strip()
+            elif param_lower.startswith('out '):
+                is_inout = True
+                param_str = param_str[4:].strip()
+            
+            parts = param_str.split()
+            if len(parts) >= 2:
+                param_type = parts[0]
+                param_name = parts[1]
+                params.append(FunctionParameter(name=param_name, type=param_type, inOut=is_inout))
+        
+        return params, return_type
+    except Exception:
+        return None, None
 
 
 def convert_signature_value(

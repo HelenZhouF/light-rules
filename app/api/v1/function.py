@@ -11,6 +11,7 @@ from app.schemas.function import (
     FunctionResponse,
     FunctionResponseData,
     FunctionListResponse,
+    parse_ds2_signature,
 )
 from app.crud import (
     get_function_category_by_id,
@@ -32,14 +33,14 @@ from app.utils.hateoas import (
 )
 
 router = APIRouter(prefix="/function-categories/{category_id}/functions", tags=["functions"])
+router_no_prefix = APIRouter(prefix="/functions", tags=["functions"])
 
 
 def function_to_response(function) -> dict:
     data = FunctionResponseData.model_validate(function)
     links = build_function_links(function.id, function.category_id)
-    data_dict = data.model_dump()
-    response = FunctionResponse(**data_dict, _links=links)
-    result = response.model_dump(by_alias=True, exclude_none=True)
+    result = data.model_dump(by_alias=True, exclude_none=True)
+    result["_links"] = links.model_dump(by_alias=True, exclude_none=True)
     return result
 
 
@@ -128,6 +129,11 @@ async def create_new_function(
             detail="Function with this name already exists in the category",
         )
 
+    if function_in.signature is None:
+        parsed_signature, parsed_return_type = parse_ds2_signature(function_in.code)
+        if parsed_signature is not None:
+            function_in.signature = parsed_signature
+
     function = await create_function(db=db, function_in=function_in, category_id=category_id)
     return function_to_response(function)
 
@@ -193,3 +199,17 @@ async def delete_existing_function(
 
     await delete_function(db=db, function_id=function_id)
     return None
+
+
+@router_no_prefix.get("/{function_id}", response_model=dict, status_code=status.HTTP_200_OK)
+async def read_function_by_id(
+    function_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_session),
+):
+    function = await get_function_by_id(db, function_id=function_id)
+    if function is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Function not found",
+        )
+    return function_to_response(function)
