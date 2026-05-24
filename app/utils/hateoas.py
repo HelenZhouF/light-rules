@@ -200,6 +200,7 @@ FUNCTION_CATEGORY_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.function.
 FUNCTION_API_BASE = "/api/v1/functions"
 FUNCTION_MEDIA_TYPE = "application/vnd.sas.business.rule.function"
 FUNCTION_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.function.list"
+FUNCTION_VALIDATION_MEDIA_TYPE = "application/vnd.sas.business.rule.function+json"
 
 
 def build_function_category_links(
