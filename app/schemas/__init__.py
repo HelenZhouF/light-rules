@@ -28,6 +28,15 @@ from app.schemas.revision import (
     RevisionResponse,
     RevisionListResponse,
 )
+from app.schemas.function import (
+    FunctionParameter,
+    FunctionBase,
+    FunctionCreate,
+    FunctionUpdate,
+    FunctionResponseData,
+    FunctionResponse,
+    FunctionListResponse,
+)
 
 __all__ = [
     "Link",
@@ -52,4 +61,11 @@ __all__ = [
     "RevisionResponseData",
     "RevisionResponse",
     "RevisionListResponse",
+    "FunctionParameter",
+    "FunctionBase",
+    "FunctionCreate",
+    "FunctionUpdate",
+    "FunctionResponseData",
+    "FunctionResponse",
+    "FunctionListResponse",
 ]

@@ -23,6 +23,24 @@ from app.crud.rule import (
     update_rule,
     delete_rule,
 )
+from app.crud.function_category import (
+    get_function_category_by_id,
+    get_function_category_by_name,
+    get_function_categories,
+    count_function_categories,
+    create_function_category,
+    update_function_category,
+    delete_function_category,
+)
+from app.crud.function import (
+    get_function_by_id,
+    get_function_by_name_and_category,
+    get_functions_by_category_id,
+    count_functions_by_category,
+    create_function,
+    update_function,
+    delete_function,
+)
 
 __all__ = [
     "get_ruleset_by_id",
@@ -46,4 +64,18 @@ __all__ = [
     "create_rule",
     "update_rule",
     "delete_rule",
+    "get_function_category_by_id",
+    "get_function_category_by_name",
+    "get_function_categories",
+    "count_function_categories",
+    "create_function_category",
+    "update_function_category",
+    "delete_function_category",
+    "get_function_by_id",
+    "get_function_by_name_and_category",
+    "get_functions_by_category_id",
+    "count_functions_by_category",
+    "create_function",
+    "update_function",
+    "delete_function",
 ]

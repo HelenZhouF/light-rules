@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 class Link(BaseModel):
     href: str
     method: str = "GET"
+    uri: str
+    type: str
 
 
 class ResourceLinks(BaseModel):
@@ -21,6 +23,9 @@ class ResourceLinks(BaseModel):
     addEntries: Optional[Link] = None
     patchEntries: Optional[Link] = None
     updateOrder: Optional[Link] = None
+    createFunctionCategory: Optional[Link] = None
+    functions: Optional[Link] = None
+    category: Optional[Link] = None
 
     model_config = {
         "exclude_none": True,
