@@ -24,15 +24,15 @@ def parse_ds2_signature(code: str) -> Tuple[Optional[List[FunctionParameter]], O
             declaration = code
         
         method_match = re.search(
-            r'method\s+(\w+)\s*\((.*?)\)\s*(?:returns\s+(\w+))?',
+            r'method\s+(?:(\w+)\s+)?(\w+)\s*\((.*?)\)',
             declaration,
             re.IGNORECASE
         )
         if not method_match:
             return None, None
-        
-        params_str = method_match.group(2).strip()
-        return_type = method_match.group(3)
+
+        params_str = method_match.group(3).strip()
+        return_type = method_match.group(1)
         
         if not params_str:
             return [], return_type
@@ -45,12 +45,11 @@ def parse_ds2_signature(code: str) -> Tuple[Optional[List[FunctionParameter]], O
             
             is_inout = False
             param_lower = param_str.lower()
-            if param_lower.startswith('inout '):
-                is_inout = True
-                param_str = param_str[6:].strip()
-            elif param_lower.startswith('out '):
-                is_inout = True
-                param_str = param_str[4:].strip()
+            for prefix in ('in_out ', 'inout ', 'out ', 'in '):
+                if param_lower.startswith(prefix):
+                    is_inout = True
+                    param_str = param_str[len(prefix):].strip()
+                    break
             
             parts = param_str.split()
             if len(parts) >= 2:

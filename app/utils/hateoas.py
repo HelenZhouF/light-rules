@@ -3,8 +3,13 @@ from typing import Optional
 
 from app.schemas.ruleset import Link, ResourceLinks, PaginationLinks
 
-
 API_BASE = "/api/v1/rulesets"
+RULESET_MEDIA_TYPE = "application/vnd.sas.business.rule.ruleset"
+RULESET_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.ruleset.list"
+RULE_MEDIA_TYPE = "application/vnd.sas.business.rule"
+REVISION_MEDIA_TYPE = "application/vnd.sas.business.rule.revision"
+DOMAIN_MEDIA_TYPE = "application/vnd.sas.business.rule.domain"
+DOMAIN_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.domain.list"
 
 
 def build_ruleset_links(
@@ -12,20 +17,20 @@ def build_ruleset_links(
     is_locked: bool,
 ) -> ResourceLinks:
     base_url = f"{API_BASE}/{ruleset_id}"
-    
+
     links = ResourceLinks(
-        self=Link(href=base_url, method="GET"),
-        rules=Link(href=f"{base_url}/rules/", method="GET"),
-        revisions=Link(href=f"{base_url}/revisions", method="GET"),
+        self=Link(href=base_url, method="GET", uri=base_url, type=RULESET_MEDIA_TYPE),
+        rules=Link(href=f"{base_url}/rules/", method="GET", uri=f"{base_url}/rules/", type=RULE_MEDIA_TYPE),
+        revisions=Link(href=f"{base_url}/revisions", method="GET", uri=f"{base_url}/revisions", type=REVISION_MEDIA_TYPE),
     )
-    
+
     if not is_locked:
-        links.addRules = Link(href=f"{base_url}/rules/", method="POST")
-        links.update = Link(href=base_url, method="PUT")
-        links.delete = Link(href=base_url, method="DELETE")
-        links.createRevision = Link(href=f"{base_url}/revisions", method="POST")
-        links.updateOrder = Link(href=f"{base_url}/order", method="PUT")
-    
+        links.addRules = Link(href=f"{base_url}/rules/", method="POST", uri=f"{base_url}/rules/", type=RULE_MEDIA_TYPE)
+        links.update = Link(href=base_url, method="PUT", uri=base_url, type=RULESET_MEDIA_TYPE)
+        links.delete = Link(href=base_url, method="DELETE", uri=base_url, type=RULESET_MEDIA_TYPE)
+        links.createRevision = Link(href=f"{base_url}/revisions", method="POST", uri=f"{base_url}/revisions", type=REVISION_MEDIA_TYPE)
+        links.updateOrder = Link(href=f"{base_url}/order", method="PUT", uri=f"{base_url}/order", type=RULESET_MEDIA_TYPE)
+
     return links
 
 
@@ -36,16 +41,16 @@ def build_rule_links(
 ) -> ResourceLinks:
     base_url = f"{API_BASE}/{ruleset_id}/rules/{rule_id}"
     ruleset_url = f"{API_BASE}/{ruleset_id}"
-    
+
     links = ResourceLinks(
-        self=Link(href=base_url, method="GET"),
-        up=Link(href=ruleset_url, method="GET"),
+        self=Link(href=base_url, method="GET", uri=base_url, type=RULE_MEDIA_TYPE),
+        up=Link(href=ruleset_url, method="GET", uri=ruleset_url, type=RULESET_MEDIA_TYPE),
     )
-    
+
     if not ruleset_is_locked:
-        links.update = Link(href=base_url, method="PUT")
-        links.delete = Link(href=base_url, method="DELETE")
-    
+        links.update = Link(href=base_url, method="PUT", uri=base_url, type=RULE_MEDIA_TYPE)
+        links.delete = Link(href=base_url, method="DELETE", uri=base_url, type=RULE_MEDIA_TYPE)
+
     return links
 
 
@@ -55,22 +60,22 @@ def build_pagination_links(
     total: int,
 ) -> PaginationLinks:
     base_url = API_BASE
-    
+
     def build_page_url(s: int) -> str:
         return f"{base_url}?skip={s}&limit={limit}"
-    
+
     links = PaginationLinks(
-        self=Link(href=build_page_url(skip), method="GET"),
-        first=Link(href=build_page_url(0), method="GET"),
+        self=Link(href=build_page_url(skip), method="GET", uri=build_page_url(skip), type=RULESET_LIST_MEDIA_TYPE),
+        first=Link(href=build_page_url(0), method="GET", uri=build_page_url(0), type=RULESET_LIST_MEDIA_TYPE),
     )
-    
+
     if skip + limit < total:
-        links.next = Link(href=build_page_url(skip + limit), method="GET")
-    
+        links.next = Link(href=build_page_url(skip + limit), method="GET", uri=build_page_url(skip + limit), type=RULESET_LIST_MEDIA_TYPE)
+
     if skip > 0:
         prev_skip = max(0, skip - limit)
-        links.prev = Link(href=build_page_url(prev_skip), method="GET")
-    
+        links.prev = Link(href=build_page_url(prev_skip), method="GET", uri=build_page_url(prev_skip), type=RULESET_LIST_MEDIA_TYPE)
+
     return links
 
 
@@ -81,22 +86,22 @@ def build_rule_pagination_links(
     total: int,
 ) -> PaginationLinks:
     base_url = f"{API_BASE}/{ruleset_id}/rules"
-    
+
     def build_page_url(s: int) -> str:
         return f"{base_url}?skip={s}&limit={limit}"
-    
+
     links = PaginationLinks(
-        self=Link(href=build_page_url(skip), method="GET"),
-        first=Link(href=build_page_url(0), method="GET"),
+        self=Link(href=build_page_url(skip), method="GET", uri=build_page_url(skip), type=RULE_MEDIA_TYPE),
+        first=Link(href=build_page_url(0), method="GET", uri=build_page_url(0), type=RULE_MEDIA_TYPE),
     )
-    
+
     if skip + limit < total:
-        links.next = Link(href=build_page_url(skip + limit), method="GET")
-    
+        links.next = Link(href=build_page_url(skip + limit), method="GET", uri=build_page_url(skip + limit), type=RULE_MEDIA_TYPE)
+
     if skip > 0:
         prev_skip = max(0, skip - limit)
-        links.prev = Link(href=build_page_url(prev_skip), method="GET")
-    
+        links.prev = Link(href=build_page_url(prev_skip), method="GET", uri=build_page_url(prev_skip), type=RULE_MEDIA_TYPE)
+
     return links
 
 
@@ -108,16 +113,16 @@ def build_revision_links(
     base_url = f"{API_BASE}/{ruleset_id}/revisions/{revision_id}"
     ruleset_url = f"{API_BASE}/{ruleset_id}"
     revisions_url = f"{API_BASE}/{ruleset_id}/revisions"
-    
+
     links = ResourceLinks(
-        self=Link(href=base_url, method="GET"),
-        up=Link(href=revisions_url, method="GET"),
-        ruleset=Link(href=ruleset_url, method="GET"),
+        self=Link(href=base_url, method="GET", uri=base_url, type=REVISION_MEDIA_TYPE),
+        up=Link(href=revisions_url, method="GET", uri=revisions_url, type=REVISION_MEDIA_TYPE),
+        ruleset=Link(href=ruleset_url, method="GET", uri=ruleset_url, type=RULESET_MEDIA_TYPE),
     )
-    
+
     if not is_locked:
-        links.createRevision = Link(href=revisions_url, method="POST")
-    
+        links.createRevision = Link(href=revisions_url, method="POST", uri=revisions_url, type=REVISION_MEDIA_TYPE)
+
     return links
 
 
@@ -128,22 +133,22 @@ def build_revision_pagination_links(
     total: int,
 ) -> PaginationLinks:
     base_url = f"{API_BASE}/{ruleset_id}/revisions"
-    
+
     def build_page_url(s: int) -> str:
         return f"{base_url}?skip={s}&limit={limit}"
-    
+
     links = PaginationLinks(
-        self=Link(href=build_page_url(skip), method="GET"),
-        first=Link(href=build_page_url(0), method="GET"),
+        self=Link(href=build_page_url(skip), method="GET", uri=build_page_url(skip), type=REVISION_MEDIA_TYPE),
+        first=Link(href=build_page_url(0), method="GET", uri=build_page_url(0), type=REVISION_MEDIA_TYPE),
     )
-    
+
     if skip + limit < total:
-        links.next = Link(href=build_page_url(skip + limit), method="GET")
-    
+        links.next = Link(href=build_page_url(skip + limit), method="GET", uri=build_page_url(skip + limit), type=REVISION_MEDIA_TYPE)
+
     if skip > 0:
         prev_skip = max(0, skip - limit)
-        links.prev = Link(href=build_page_url(prev_skip), method="GET")
-    
+        links.prev = Link(href=build_page_url(prev_skip), method="GET", uri=build_page_url(prev_skip), type=REVISION_MEDIA_TYPE)
+
     return links
 
 
@@ -154,17 +159,17 @@ def build_domain_links(
     domain_id: uuid.UUID,
 ) -> ResourceLinks:
     base_url = f"{DOMAIN_API_BASE}/{domain_id}"
-    
+
     links = ResourceLinks(
-        self=Link(href=base_url, method="GET"),
-        entries=Link(href=f"{base_url}/entries", method="GET"),
+        self=Link(href=base_url, method="GET", uri=base_url, type=DOMAIN_MEDIA_TYPE),
+        entries=Link(href=f"{base_url}/entries", method="GET", uri=f"{base_url}/entries", type=DOMAIN_MEDIA_TYPE),
     )
-    
-    links.update = Link(href=base_url, method="PUT")
-    links.delete = Link(href=base_url, method="DELETE")
-    links.addEntries = Link(href=f"{base_url}/entries", method="POST")
-    links.patchEntries = Link(href=f"{base_url}/entries", method="PATCH")
-    
+
+    links.update = Link(href=base_url, method="PUT", uri=base_url, type=DOMAIN_MEDIA_TYPE)
+    links.delete = Link(href=base_url, method="DELETE", uri=base_url, type=DOMAIN_MEDIA_TYPE)
+    links.addEntries = Link(href=f"{base_url}/entries", method="POST", uri=f"{base_url}/entries", type=DOMAIN_MEDIA_TYPE)
+    links.patchEntries = Link(href=f"{base_url}/entries", method="PATCH", uri=f"{base_url}/entries", type=DOMAIN_MEDIA_TYPE)
+
     return links
 
 
@@ -174,22 +179,22 @@ def build_domain_pagination_links(
     total: int,
 ) -> PaginationLinks:
     base_url = DOMAIN_API_BASE
-    
+
     def build_page_url(s: int) -> str:
         return f"{base_url}?skip={s}&limit={limit}"
-    
+
     links = PaginationLinks(
-        self=Link(href=build_page_url(skip), method="GET"),
-        first=Link(href=build_page_url(0), method="GET"),
+        self=Link(href=build_page_url(skip), method="GET", uri=build_page_url(skip), type=DOMAIN_LIST_MEDIA_TYPE),
+        first=Link(href=build_page_url(0), method="GET", uri=build_page_url(0), type=DOMAIN_LIST_MEDIA_TYPE),
     )
-    
+
     if skip + limit < total:
-        links.next = Link(href=build_page_url(skip + limit), method="GET")
-    
+        links.next = Link(href=build_page_url(skip + limit), method="GET", uri=build_page_url(skip + limit), type=DOMAIN_LIST_MEDIA_TYPE)
+
     if skip > 0:
         prev_skip = max(0, skip - limit)
-        links.prev = Link(href=build_page_url(prev_skip), method="GET")
-    
+        links.prev = Link(href=build_page_url(prev_skip), method="GET", uri=build_page_url(prev_skip), type=DOMAIN_LIST_MEDIA_TYPE)
+
     return links
 
 
@@ -200,6 +205,7 @@ FUNCTION_CATEGORY_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.function.
 FUNCTION_API_BASE = "/api/v1/functions"
 FUNCTION_MEDIA_TYPE = "application/vnd.sas.business.rule.function"
 FUNCTION_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.function.list"
+FUNCTION_VALIDATION_MEDIA_TYPE = "application/vnd.sas.business.rule.function+json"
 
 
 def build_function_category_links(
