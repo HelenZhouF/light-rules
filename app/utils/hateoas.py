@@ -3,7 +3,6 @@ from typing import Optional
 
 from app.schemas.ruleset import Link, ResourceLinks, PaginationLinks
 
-
 API_BASE = "/api/v1/rulesets"
 RULESET_MEDIA_TYPE = "application/vnd.sas.business.rule.ruleset"
 RULESET_LIST_MEDIA_TYPE = "application/vnd.sas.business.rule.ruleset.list"
